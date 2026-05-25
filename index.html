@@ -63,8 +63,14 @@
   }
 
   /* ─── TELAS ─────────────────────────── */
-  .screen { display: none; min-height: 100vh; }
-  .screen.active { display: flex; flex-direction: column; }
+  .screen { display: none; }
+  .screen.active {
+    display: flex; flex-direction: column;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    overflow-y: auto; overflow-x: hidden;
+    background: var(--bg);
+    z-index: 1;
+  }
 
   /* ─── LOGO SVG ─────────────────────── */
   .mude-logo { display: block; }
@@ -412,7 +418,7 @@
   /* Conteúdo do passo */
   .step-content {
     flex: 1; max-width: 760px; margin: 0 auto; width: 100%;
-    padding: 36px 28px 40px;
+    padding: 20px 28px 40px;
   }
   .step-panel { display: none; }
   .step-panel.active { display: block; animation: fadeSlide 0.28s ease; }
@@ -1428,8 +1434,10 @@ function iniciarApp() {
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  el.scrollTop = 0;
+  window.scrollTo(0, 0);
 }
 
 function goToStep(n) {
@@ -1438,6 +1446,9 @@ function goToStep(n) {
   const pct = ((n + 1) / TOTAL * 100).toFixed(1);
   document.getElementById('progress-fill').style.width = pct + '%';
   document.getElementById('step-counter').textContent = `Ponto ${n + 1} de ${TOTAL}`;
+  // Scroll ao topo do app ao trocar de passo
+  const appEl = document.getElementById('app');
+  if(appEl) appEl.scrollTop = 0;
   document.querySelectorAll('.step-dot').forEach((d, i) => {
     d.classList.remove('active', 'done');
     if (i < n) d.classList.add('done');
@@ -1573,6 +1584,11 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
   }
 
   showScreen('success');
+  // Garantir scroll ao topo da tela de sucesso
+  setTimeout(() => {
+    const s = document.getElementById('success');
+    if(s) s.scrollTop = 0;
+  }, 50);
 }
 
 function getLeads() {
@@ -1586,6 +1602,9 @@ const MUDE_LOGO_B64 = 'iVBORw0KGgoAAAANSUhEUgAABa0AAAWNCAYAAADmbHmQAAAACXBIWXMAA
 function baixarResumo() {
   const { jsPDF } = window.jspdf;
   const l = lead;
+  // Captura a escolha do consultor
+  const radioSel = document.querySelector('input[name="consultor-opt"]:checked');
+  const consultorOpt = radioSel ? radioSel.value : null; // 'sim', 'nao', ou null
   const fmt    = v => { if (Array.isArray(v)) return v.length ? v.join(' · ') : '—'; return v || '—'; };
   const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR');
   const fmtArr = a => Array.isArray(a) && a.length ? a.join(' · ') : '—';
@@ -1671,6 +1690,15 @@ function baixarResumo() {
   doc.text(bTxt, PW-MR-bW/2, y+11.2, {align:'center'});
 
   y += 40;
+
+  // Ornamento de encerramento da capa
+  const capaOrnX = PW/2;
+  doc.setFillColor(...GOLD);   doc.rect(ML, y, CW*0.42, 0.35, 'F');
+  doc.setFillColor(...INK);    doc.rect(capaOrnX-2.5, y-1.5, 5, 5, 'F');
+  doc.setFillColor(...GOLDD);  doc.rect(capaOrnX+3.5, y, CW*0.42, 0.35, 'F');
+  y += 10;
+  sf('normal', 7, MUTED);
+  doc.text('Perfil confidencial — Uso interno Mude Imóveis · CRECI-J 6052', PW/2, y, {align:'center'});
 
   // ═══ FUNÇÃO SEÇÃO ═══════════════════════════════════════════
   const newPage = () => {
@@ -1786,20 +1814,27 @@ function baixarResumo() {
   doc.setDrawColor(...GOLD); doc.setLineWidth(0.3);
   doc.line(ML+16, y+17, PW-MR-16, y+17);
 
-  // Checkbox SIM
+  // Checkbox — mostrar apenas o selecionado (ou ambos vazios se nenhum)
   const cby = y+23;
   const cbSz = 9;
   const cbXs = PW/2 - 40;
   const cbXn = PW/2 + 12;
 
-  doc.setFillColor(255,255,255); doc.setDrawColor(...GOLD); doc.setLineWidth(0.7);
+  // SIM
+  const simMarcado = consultorOpt === 'sim';
+  doc.setFillColor(...(simMarcado ? GOLD : [255,255,255]));
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.7);
   doc.rect(cbXs, cby, cbSz, cbSz, 'FD');
+  if(simMarcado) { sf('bold',7,[255,255,255]); doc.text('✓', cbXs+cbSz/2, cby+6.5, {align:'center'}); }
   sf('bold', 9, [26,26,26]);
   doc.text('SIM', cbXs + cbSz + 3, cby + 6.5);
 
-  // Checkbox NÃO
-  doc.setFillColor(255,255,255); doc.setDrawColor(...GOLD); doc.setLineWidth(0.7);
+  // NÃO
+  const naoMarcado = consultorOpt === 'nao';
+  doc.setFillColor(...(naoMarcado ? GOLD : [255,255,255]));
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.7);
   doc.rect(cbXn, cby, cbSz, cbSz, 'FD');
+  if(naoMarcado) { sf('bold',7,[255,255,255]); doc.text('✓', cbXn+cbSz/2, cby+6.5, {align:'center'}); }
   sf('bold', 9, [26,26,26]);
   doc.text('NÃO', cbXn + cbSz + 3, cby + 6.5);
 
