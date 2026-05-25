@@ -1599,8 +1599,8 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
       lead_interesse: lead.interesse,
       quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao'
     }).then(() => toast('E-mail de notificacao enviado!')).catch(err => {
-      console.warn('EmailJS erro:', err);
-      toast('Aviso: e-mail nao enviado (' + (err.text||err.message||'erro') + ')');
+      console.warn('EmailJS erro completo:', JSON.stringify(err));
+      alert('ERRO AO ENVIAR E-MAIL\n\nDetalhes: ' + JSON.stringify(err));
     });
   }
 
