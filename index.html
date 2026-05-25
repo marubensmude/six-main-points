@@ -1721,12 +1721,12 @@ function baixarResumo() {
   doc.text('RESUMO DO PERFIL', ML, y);
   y += 6;
   const resumoItems = [
-    fmt(l.tipologia) !== '—' ? '🏠  Tipo: '+fmt(l.tipologia) : null,
-    l.quartos ? '🛏  Quartos mínimos: '+l.quartos+(l.suites?' | Suítes: '+l.suites:'') : null,
-    l.area_m2 ? '📐  Área mínima: '+l.area_m2+' m²' : null,
-    fmtArr(l.padrao) !== '—' ? '⭐  Padrão: '+fmtArr(l.padrao) : null,
-    (l.preco_min||l.preco_max) ? '💰  Faixa: '+fmtBRL(l.preco_min)+' — '+fmtBRL(l.preco_max) : null,
-    fmtArr(l.loc_bairros) !== '—' ? '📍  Localização: '+fmtArr(l.loc_bairros) : null,
+    fmt(l.tipologia) !== '—' ? 'Tipo: '+fmt(l.tipologia) : null,
+    l.quartos ? 'Quartos mínimos: '+l.quartos+(l.suites?' | Suítes: '+l.suites:'') : null,
+    l.area_m2 ? 'Area minima: '+l.area_m2+' m2' : null,
+    fmtArr(l.padrao) !== '—' ? 'Padrao: '+fmtArr(l.padrao) : null,
+    (l.preco_min||l.preco_max) ? 'Faixa: '+fmtBRL(l.preco_min)+' — '+fmtBRL(l.preco_max) : null,
+    fmtArr(l.loc_bairros) !== '—' ? 'Localizacao: '+fmtArr(l.loc_bairros) : null,
   ].filter(Boolean);
   resumoItems.forEach((item, i) => {
     if(y > PH-40) return;
@@ -1864,7 +1864,7 @@ function baixarResumo() {
   y += 8;
   fr(ML, y, CW, 12, GOLD);
   sf('bold', 9, WHITE);
-  doc.text('✔  PERFIL ENVIADO COM SUCESSO', PW/2, y+8, {align:'center'});
+  doc.text('Obrigado! Em breve lhe enviaremos as melhores opcoes de imoveis!', PW/2, y+8, {align:'center'});
 
   // Rodapé fixo em todas as páginas
   const totalPags = doc.internal.getNumberOfPages();
