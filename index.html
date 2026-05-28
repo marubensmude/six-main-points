@@ -4,7 +4,39 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Six Main Points — Mude Imóveis</title>
-<!-- v3.4 build: 2026-05-27 — fix sweet-spot M/K + ajuste payload e-mail -->
+<!-- v3.5 build: 2026-05-28 — tracking Meta Pixel + GA4 + atribuição -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     META PIXEL (Facebook / Instagram Ads)
+     ID: 926169598208939
+     ══════════════════════════════════════════════════════════════════════ -->
+<script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '926169598208939');
+  fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=926169598208939&ev=PageView&noscript=1"/></noscript>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     GOOGLE ANALYTICS 4
+     ID: G-G3XE6XQWDJ
+     ══════════════════════════════════════════════════════════════════════ -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-G3XE6XQWDJ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-G3XE6XQWDJ');
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Outfit:wght@300;400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -30,6 +62,81 @@
   const EMAIL_DESTINO       = 'mario@mudeimobiliaria.com.br';
   (function(){ emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); })();
 
+  // ── TRACKING / ATRIBUIÇÃO ────────────────────────────────────────────────────
+  // Captura UTMs + click IDs (fbclid, gclid, gbraid, wbraid, msclkid, ttclid)
+  // + cookies do Meta (_fbp, _fbc) + referrer + landing_url.
+  // Persiste em localStorage com TTL de 90 dias. Conforme spec interna
+  // 03_TRACKING_ATTRIBUITION.md.
+  const ATTR_STORAGE_KEY = 'attr_v1';
+  const ATTR_TTL_DAYS    = 90;
+
+  function _getCookie(name) {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : undefined;
+  }
+
+  function _stripUndefined(obj) {
+    const out = {};
+    Object.keys(obj).forEach(k => { if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') out[k] = obj[k]; });
+    return out;
+  }
+
+  // Chama no primeiro load para gravar atribuição.
+  function captureAttribution() {
+    if (typeof window === 'undefined') return {};
+    const url = new URL(window.location.href);
+    const q   = url.searchParams;
+    const fresh = {
+      // Click IDs
+      fbclid:  q.get('fbclid')  || undefined,
+      gclid:   q.get('gclid')   || undefined,
+      gbraid:  q.get('gbraid')  || undefined,
+      wbraid:  q.get('wbraid')  || undefined,
+      msclkid: q.get('msclkid') || undefined,
+      ttclid:  q.get('ttclid')  || undefined,
+      // Meta Pixel cookies (setados pelo fbevents.js)
+      fbp: _getCookie('_fbp'),
+      fbc: _getCookie('_fbc'),
+      // UTMs
+      utm_source:   q.get('utm_source')   || undefined,
+      utm_medium:   q.get('utm_medium')   || undefined,
+      utm_campaign: q.get('utm_campaign') || undefined,
+      utm_content:  q.get('utm_content')  || undefined,
+      utm_term:     q.get('utm_term')     || undefined,
+      // Contexto
+      referrer:    document.referrer || undefined,
+      landing_url: window.location.href
+    };
+    const stored = loadAttribution();
+    const merged = Object.assign({}, stored, _stripUndefined(fresh));
+    try {
+      localStorage.setItem(ATTR_STORAGE_KEY, JSON.stringify({ at: Date.now(), data: merged }));
+    } catch(e) { console.warn('attribution localStorage falhou:', e); }
+    return merged;
+  }
+
+  // Recupera atribuição gravada (vazia se nunca capturada ou se expirou).
+  function loadAttribution() {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem(ATTR_STORAGE_KEY);
+      if (!raw) return {};
+      const { at, data } = JSON.parse(raw);
+      if (Date.now() - at > ATTR_TTL_DAYS * 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(ATTR_STORAGE_KEY);
+        return {};
+      }
+      // Atualiza fbp/fbc na hora da leitura (cookies podem ter sido setados
+      // depois do landing inicial pelo Meta Pixel).
+      const fbp = _getCookie('_fbp');
+      const fbc = _getCookie('_fbc');
+      return Object.assign({}, data || {}, _stripUndefined({ fbp, fbc }));
+    } catch(e) { return {}; }
+  }
+
+  // Captura no primeiro load (antes do DOMContentLoaded mesmo).
+  try { captureAttribution(); } catch(e) { console.warn('captureAttribution erro:', e); }
+
   // ── SUPABASE HELPERS ─────────────────────────────────────────────────────────
   async function sbSaveLead(l) {
     try {
@@ -51,7 +158,9 @@
           diferenciais: l.diferenciais, obs_diferenciais: l.obs_diferenciais,
           preco_min: l.preco_min, preco_max: l.preco_max,
           pgto: l.pgto, obs_permuta: l.obs_permuta,
-          prazo_negocio: l.prazo_negocio, obs_finais: l.obs_finais
+          prazo_negocio: l.prazo_negocio, obs_finais: l.obs_finais,
+          // Atribuição de paid media (Meta/Google/TikTok/Bing) — JSONB
+          attribution: l.attribution || loadAttribution()
         })
       });
       if (!resp.ok) console.warn('Supabase save erro:', await resp.text());
@@ -1526,9 +1635,35 @@ function coletarPasso(n) {
 
 function finalizarPerfil() {
   coletarPasso(5);
+
+  // ── Anexa atribuição (UTMs + click IDs + cookies Meta) ─────
+  try { lead.attribution = loadAttribution(); } catch(e) { lead.attribution = {}; }
+
   const leads = getLeads(); leads.push(lead);
   localStorage.setItem('mude_leads', JSON.stringify(leads));
   sbSaveLead(lead); // salva no Supabase (não bloqueia)
+
+  // ── Dispara eventos de conversão (Lead) ────────────────────
+  try {
+    if (typeof fbq === 'function') {
+      fbq('track', 'Lead', {
+        content_name: 'Six Main Points — Perfil de Compra',
+        content_category: lead.interesse || 'imovel',
+        currency: 'BRL',
+        value: Number(lead.preco_max) || 0
+      });
+    }
+  } catch(e) { console.warn('fbq Lead erro:', e); }
+  try {
+    if (typeof gtag === 'function') {
+      gtag('event', 'generate_lead', {
+        currency: 'BRL',
+        value: Number(lead.preco_max) || 0,
+        lead_interesse: lead.interesse || '',
+        lead_tipologia: lead.tipologia || ''
+      });
+    }
+  } catch(e) { console.warn('gtag generate_lead erro:', e); }
 
   // ── Monta corpo do e-mail ──────────────────────────────────
   const fmt    = v => v || '—';
@@ -1611,7 +1746,13 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
       lead_wpp:    lead.wpp,
       lead_email:  lead.email,
       lead_interesse: lead.interesse,
-      quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao'
+      quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao',
+      // Origem (atribuição de paid media) — fica visível no e-mail
+      lead_utm_source:   (lead.attribution && lead.attribution.utm_source)   || '—',
+      lead_utm_medium:   (lead.attribution && lead.attribution.utm_medium)   || '—',
+      lead_utm_campaign: (lead.attribution && lead.attribution.utm_campaign) || '—',
+      lead_utm_content:  (lead.attribution && lead.attribution.utm_content)  || '—',
+      lead_attribution_json: JSON.stringify(lead.attribution || {}, null, 2)
     }).then(() => toast('E-mail de notificacao enviado!')).catch(err => {
       console.warn('EmailJS erro completo:', JSON.stringify(err));
       alert('ERRO AO ENVIAR E-MAIL\n\nDetalhes: ' + JSON.stringify(err));
