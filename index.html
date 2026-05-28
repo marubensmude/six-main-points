@@ -4,11 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Six Main Points — Mude Imóveis</title>
-<!-- v3.2 build: 2026-05-27 — mapa real OSM no PDF do cliente -->
+<!-- v3.3 build: 2026-05-27 — Dossiê premium (3p A4) + e-mail HTML estilizado -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Outfit:wght@300;400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- html2canvas para renderizar o template Dossiê como PNG e embutir no PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <!-- Leaflet (mapa real OSM) + leaflet-image (export para PNG via canvas) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -1307,8 +1309,8 @@
 
     <!-- Botões -->
     <div class="success-actions">
-      <button class="btn-primary" onclick="baixarResumo()" style="width:auto; padding:14px 32px;">
-        📄 Baixar PDF para CRM
+      <button class="btn-primary" onclick="gerarDossiePDF()" style="width:auto; padding:14px 32px;">
+        📄 Baixar Dossiê Premium
       </button>
       <button class="btn-outline" onclick="voltarLP()">← Início</button>
     </div>
@@ -1591,15 +1593,23 @@ Consultor Mude: ${lead.quer_consultor ? 'SIM — cliente quer ser atendido' : 'n
 Mude Imóveis · CRECI-J 6052 · Dourados, MS
   `.trim();
 
+  // ── Gera versão HTML do e-mail no MESMO padrão visual do Dossiê
+  //    (para Mario arquivar bonito cada lead na caixa de entrada).
+  //    O EmailJS aceita HTML se a sua template usar {{{message_html}}}
+  //    (três chaves = sem escape). Mantém-se `message` em texto como
+  //    fallback caso a template ainda use {{message}}.
+  const emailHtml = gerarEmailHTML(lead);
+
   // ── Envia via EmailJS (não bloqueia a tela de sucesso) ─────
   if (EMAILJS_PUBLIC_KEY !== 'SEU_PUBLIC_KEY_AQUI') {
     emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_email:   EMAIL_DESTINO,
-      subject:    'Novo Lead Six Main Points - ' + lead.nome,
-      message:    corpo,
-      lead_nome:  lead.nome,
-      lead_wpp:   lead.wpp,
-      lead_email: lead.email,
+      to_email:    EMAIL_DESTINO,
+      subject:     'Dossiê Six Main Points — ' + (lead.nome||'Novo Cliente'),
+      message:     corpo,        // fallback texto-puro
+      message_html: emailHtml,    // versão estilizada (recomendado: {{{message_html}}})
+      lead_nome:   lead.nome,
+      lead_wpp:    lead.wpp,
+      lead_email:  lead.email,
       lead_interesse: lead.interesse,
       quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao'
     }).then(() => toast('E-mail de notificacao enviado!')).catch(err => {
@@ -1711,7 +1721,636 @@ async function renderMapaBairros(bairros) {
 }
 
 
-async function baixarResumo() {
+// ═══════════════════════════════════════════════════════════════════════
+// DOSSIÊ PREMIUM — gera o PDF do cliente em 3 páginas A4 com layout
+// editorial (capa, grid de 6 pontos, seções com mapa real, timeline,
+// checklist, pillbar de preço, encerramento e assinatura).
+// O mesmo conteúdo é montado em HTML compacto para envio por e-mail.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Lista canônica de diferenciais oferecidos no formulário (para mostrar
+// quais foram marcados e quais não foram, no estilo checklist).
+const DIFERENCIAIS_CANON = [
+  'Energia fotovoltaica',
+  'Gerador',
+  'Depósito / Despensa',
+  'Automação / Smart Home',
+  'Pet friendly',
+  'Piscina',
+  'Churrasqueira',
+  'Espaço gourmet',
+  'Home office',
+  'Closet',
+  'Vista privilegiada',
+  'Mobiliado',
+];
+
+// Mapeia o prazo escolhido para os "segmentos acesos" da timeline (5 células)
+function prazoToTimelineMask(prazoArr) {
+  const a = Array.isArray(prazoArr) ? prazoArr : (prazoArr ? [prazoArr] : []);
+  const mask = [false,false,false,false,false];
+  a.forEach(p => {
+    if (/Até 30/i.test(p))                 mask[0] = true;
+    else if (/1 e 3|1.{1,3}3/i.test(p))    mask[0]=true,mask[1]=true;
+    else if (/3 e 6|3.{1,3}6/i.test(p))    mask[0]=true,mask[1]=true,mask[2]=true;
+    else if (/Mais de 6|mais.{0,3}6/i.test(p)) mask[3]=true,mask[4]=true;
+    else if (/Sem prazo/i.test(p))         mask.fill(true);
+  });
+  return mask;
+}
+
+// Constrói o sweet-spot da faixa de preço (~30% acima do mínimo até 90% do máximo)
+function sweetSpot(min, max) {
+  if (!min || !max) return '';
+  const s = Math.round(min*1.3/1000)/10;
+  const e = Math.round(max*0.9/1000)/10;
+  if (e <= s) return '';
+  const fmtK = v => v >= 1000 ? (v/1000).toFixed(2).replace(/\.?0+$/,'')+'M' : Math.round(v*100)/100+'K';
+  return `R$ ${fmtK(s)} — ${fmtK(e)}`;
+}
+
+// Formata BRL compacto (ex: 1500000 → "R$ 1,5 mi", 500000 → "R$ 500 mil")
+function fmtBRLCurto(v) {
+  if (!v) return '—';
+  const n = Number(v);
+  if (n >= 1e6) {
+    const m = Math.round(n/1e5)/10;
+    return ['R$', m.toString().replace('.', ',') , '<small> mi</small>'].join(' ');
+  }
+  return ['R$', Math.round(n/1000) , '<small> mil</small>'].join(' ');
+}
+
+// Gera número único do Dossiê: 2026-MMDD-XXXX (4 últimos dígitos do WhatsApp ou random)
+function dossieNum(l) {
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  let sufixo = (l.wpp||'').replace(/\D/g,'').slice(-4);
+  if (sufixo.length < 4) sufixo = String(Math.floor(1000+Math.random()*9000));
+  return `${d.getFullYear()}-${mm}${dd}-${sufixo}`;
+}
+
+function dataPorExtenso(d) {
+  d = d || new Date();
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${String(d.getDate()).padStart(2,'0')} · ${meses[d.getMonth()]} · ${d.getFullYear()}`;
+}
+
+// Mapeia a intenção do cliente para um texto curto e elegante
+function intencaoTexto(interesse) {
+  if (!interesse) return 'Comprar para morar';
+  const i = interesse.toLowerCase();
+  if (i.includes('investir'))  return 'Investir';
+  if (i.includes('alugar'))    return 'Alugar';
+  if (i.includes('vender'))    return 'Vender';
+  if (i.includes('morar') || i.includes('comprar')) return 'Comprar para morar';
+  return interesse;
+}
+
+// CSS do Dossiê — mesmo do template, encapsulado num namespace `.dossie-*`
+// para não brigar com o resto do site.
+const DOSSIE_CSS = `
+.dossie-stage *{box-sizing:border-box;margin:0;padding:0;}
+.dossie-stage{font-family:'Manrope',Helvetica,Arial,sans-serif;font-size:10pt;line-height:1.45;color:#22201C;-webkit-font-smoothing:antialiased;}
+.dossie-stage .page{width:794px;height:1123px;background:#FBF7EF;position:relative;overflow:hidden;padding:48px 56px;display:flex;flex-direction:column;}
+.dossie-stage .serif{font-family:'Cormorant Garamond',Georgia,serif;letter-spacing:.005em;}
+.dossie-stage .eyebrow{font-family:'Manrope',sans-serif;font-size:8.5pt;letter-spacing:.28em;text-transform:uppercase;font-weight:600;color:#9A6A52;}
+.dossie-stage .label{font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.22em;text-transform:uppercase;font-weight:600;color:#8C8275;}
+.dossie-stage .small{font-size:8.5pt;color:#8C8275;letter-spacing:.02em;}
+.dossie-stage .lockup{display:flex;align-items:center;gap:10px;}
+.dossie-stage .lockup .mude{border-radius:50%;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.12);overflow:hidden;background:#fff;}
+.dossie-stage .lockup .mude img{width:100%;height:100%;object-fit:cover;display:block;}
+.dossie-stage .lockup .divider{width:1px;background:#D9CDB6;flex-shrink:0;}
+.dossie-stage .lockup .smp{flex-shrink:0;border-radius:50%;object-fit:cover;background:#fff;}
+.dossie-stage .lockup.lg .mude,.dossie-stage .lockup.lg .smp{width:48px;height:48px;}
+.dossie-stage .lockup.lg .divider{height:32px;}
+.dossie-stage .lockup.sm .mude,.dossie-stage .lockup.sm .smp{width:26px;height:26px;}
+.dossie-stage .lockup.sm .divider{height:18px;}
+.dossie-stage .page-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:.5px solid #D9CDB6;margin-bottom:24px;}
+.dossie-stage .page-header .crumbs{font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.22em;text-transform:uppercase;color:#8C8275;}
+.dossie-stage .page-header .crumbs b{color:#22201C;font-weight:600;}
+.dossie-stage .page-header .left{display:flex;align-items:center;gap:14px;}
+.dossie-stage .page-footer{margin-top:auto;padding-top:14px;border-top:.5px solid #D9CDB6;display:flex;justify-content:space-between;align-items:center;font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.2em;text-transform:uppercase;color:#8C8275;}
+.dossie-stage .page-footer .num{color:#9A6A52;font-weight:600;}
+.dossie-stage .section-head{display:grid;grid-template-columns:64px 1fr auto;gap:18px;align-items:end;padding-bottom:10px;border-bottom:.5px solid #D9CDB6;margin-bottom:16px;}
+.dossie-stage .section-num{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:52pt;line-height:.85;color:#B5856A;letter-spacing:-.04em;text-align:center;}
+.dossie-stage .section-name{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:22pt;line-height:1;color:#22201C;}
+.dossie-stage .section-name em{font-style:italic;color:#9A6A52;font-weight:300;}
+.dossie-stage .section-kicker{font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.3em;text-transform:uppercase;color:#8C8275;margin-bottom:5px;font-weight:600;}
+.dossie-stage .section-tag{font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.22em;text-transform:uppercase;color:#8C8275;text-align:right;line-height:1.6;}
+.dossie-stage .section-tag b{color:#22201C;font-weight:600;display:block;font-size:8pt;}
+.dossie-stage .field{padding:12px 14px;background:#FAF5EA;border:.5px solid #D9CDB6;border-radius:2px;position:relative;}
+.dossie-stage .field .k{font-family:'Manrope',sans-serif;font-size:7pt;letter-spacing:.24em;text-transform:uppercase;color:#8C8275;font-weight:600;margin-bottom:7px;}
+.dossie-stage .field .v{font-family:'Cormorant Garamond',serif;font-size:16pt;font-weight:500;color:#22201C;line-height:1.1;}
+.dossie-stage .field .v small{font-family:'Manrope',sans-serif;font-size:8.5pt;letter-spacing:.06em;color:#8C8275;text-transform:uppercase;font-weight:500;}
+.dossie-stage .field.accent{background:linear-gradient(180deg,#F3E1CF 0%, #ECD3BD 100%);border-color:#D7B89D;}
+.dossie-stage .field.accent .k{color:#7B4F38;}
+.dossie-stage .field.accent .v{color:#3B2118;}
+.dossie-stage .field-row{display:grid;gap:12px;margin-bottom:12px;}
+.dossie-stage .f2{grid-template-columns:1fr 1fr;}
+.dossie-stage .f3{grid-template-columns:1fr 1fr 1fr;}
+.dossie-stage .f4{grid-template-columns:1fr 1fr 1fr 1fr;}
+.dossie-stage .chiplist{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.dossie-stage .chip{font-family:'Manrope',sans-serif;font-size:8.5pt;letter-spacing:.04em;padding:5px 11px;border:.5px solid #B5856A;color:#9A6A52;border-radius:999px;background:#FCF3E8;font-weight:500;}
+.dossie-stage .chip.solid{background:#B5856A;color:#FBF7EF;border-color:#B5856A;}
+.dossie-stage .cover-block{background:radial-gradient(800px 400px at 50% -20%, #F7ECD8 0%, transparent 60%),linear-gradient(180deg,#F2E7D2 0%, #EFE3CC 100%);margin:-48px -56px 24px;padding:44px 56px 36px;position:relative;overflow:hidden;border-bottom:.5px solid #D9CDB6;}
+.dossie-stage .cover-deco{position:absolute;right:-60px;top:30px;opacity:.16;pointer-events:none;}
+.dossie-stage .cover-deco svg{width:340px;height:340px;}
+.dossie-stage .cover-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;position:relative;z-index:2;}
+.dossie-stage .cover-brand-text{display:flex;flex-direction:column;line-height:1;margin-left:6px;justify-content:center;}
+.dossie-stage .cover-brand-text .n1{font-family:'Cormorant Garamond',serif;font-size:12pt;letter-spacing:.18em;color:#22201C;font-weight:500;}
+.dossie-stage .cover-brand-text .n2{font-family:'Manrope',sans-serif;font-size:7pt;letter-spacing:.32em;text-transform:uppercase;color:#9A6A52;margin-top:4px;}
+.dossie-stage .cover-creci{font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.22em;text-transform:uppercase;color:#8C8275;text-align:right;line-height:1.7;}
+.dossie-stage .cover-eyebrow{font-family:'Manrope',sans-serif;font-size:8pt;letter-spacing:.4em;text-transform:uppercase;color:#9A6A52;font-weight:600;margin-bottom:14px;position:relative;z-index:2;}
+.dossie-stage .cover-title{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:54pt;line-height:.95;letter-spacing:-.02em;color:#22201C;margin-bottom:12px;position:relative;z-index:2;}
+.dossie-stage .cover-title em{font-style:italic;font-weight:400;color:#9A6A52;}
+.dossie-stage .cover-sub{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;font-size:14pt;color:#3A3530;max-width:480px;line-height:1.35;position:relative;z-index:2;}
+.dossie-stage .cover-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:24px;padding-top:18px;border-top:.5px solid rgba(154,106,82,.3);position:relative;z-index:2;}
+.dossie-stage .cover-meta .ck{font-family:'Manrope',sans-serif;font-size:7pt;letter-spacing:.26em;text-transform:uppercase;color:#8C8275;margin-bottom:5px;font-weight:600;}
+.dossie-stage .cover-meta .cv{font-family:'Cormorant Garamond',serif;font-size:13pt;font-weight:500;color:#22201C;line-height:1.2;}
+.dossie-stage .cover-meta .cv .ms{font-family:'Manrope',sans-serif;font-size:8.5pt;color:#8C8275;letter-spacing:0;text-transform:none;font-weight:400;display:block;margin-top:2px;}
+.dossie-stage .summary-head{margin-bottom:14px;}
+.dossie-stage .summary-head h2{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:24pt;line-height:1;color:#22201C;margin-bottom:6px;}
+.dossie-stage .summary-head h2 em{font-style:italic;color:#9A6A52;font-weight:300;}
+.dossie-stage .grid-6{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:.5px solid #D9CDB6;border-left:.5px solid #D9CDB6;}
+.dossie-stage .grid-6 .cell{border-right:.5px solid #D9CDB6;border-bottom:.5px solid #D9CDB6;padding:14px 16px 16px;position:relative;background:#FBF7EF;min-height:108px;}
+.dossie-stage .grid-6 .cell .n{font-family:'Cormorant Garamond',serif;font-size:22pt;font-weight:300;color:#B5856A;line-height:1;position:absolute;right:12px;top:10px;}
+.dossie-stage .grid-6 .cell .k{font-family:'Manrope',sans-serif;font-size:7pt;letter-spacing:.24em;text-transform:uppercase;color:#8C8275;font-weight:600;margin-bottom:10px;}
+.dossie-stage .grid-6 .cell .v{font-family:'Cormorant Garamond',serif;font-size:14pt;font-weight:500;color:#22201C;line-height:1.15;}
+.dossie-stage .grid-6 .cell .vs{font-family:'Manrope',sans-serif;font-size:8pt;color:#3A3530;margin-top:4px;letter-spacing:.01em;}
+.dossie-stage .map{height:124px;border-radius:2px;border:.5px solid #D9CDB6;background:linear-gradient(180deg,#F6EDDB,#EFE3CC);position:relative;overflow:hidden;margin-top:8px;}
+.dossie-stage .map img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+.dossie-stage .timeline{display:flex;align-items:center;gap:0;}
+.dossie-stage .timeline .t{flex:1;text-align:center;padding:8px 4px;border:.5px solid #D9CDB6;border-right:none;background:#FAF5EA;font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.16em;text-transform:uppercase;color:#8C8275;font-weight:600;}
+.dossie-stage .timeline .t:last-child{border-right:.5px solid #D9CDB6;}
+.dossie-stage .timeline .t.on{background:#B5856A;color:#FBF7EF;border-color:#B5856A;}
+.dossie-stage .checklist{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:2px;}
+.dossie-stage .checklist .ci{display:flex;align-items:center;gap:9px;padding:6px 2px;border-bottom:.5px dotted #D9CDB6;}
+.dossie-stage .checklist .ci .bx{width:15px;height:15px;border:1px solid #B5856A;border-radius:3px;display:grid;place-items:center;background:#FCF3E8;flex-shrink:0;}
+.dossie-stage .checklist .ci .bx svg{width:9px;height:9px;color:#9A6A52;}
+.dossie-stage .checklist .ci .tx{font-family:'Manrope',sans-serif;font-size:9.5pt;color:#22201C;font-weight:500;}
+.dossie-stage .pillbar{display:flex;align-items:center;gap:12px;margin-top:6px;}
+.dossie-stage .pillbar .track{flex:1;height:7px;border-radius:999px;background:#EDE2CB;position:relative;overflow:hidden;}
+.dossie-stage .pillbar .track::before{content:'';position:absolute;left:25%;right:0;top:0;bottom:0;background:linear-gradient(90deg,#E7CDB9,#B5856A);border-radius:999px;}
+.dossie-stage .pillbar .min,.dossie-stage .pillbar .max{font-family:'Cormorant Garamond',serif;font-size:13pt;font-weight:500;color:#22201C;}
+.dossie-stage .pillbar .min{color:#8C8275;}
+.dossie-stage .quote{margin:12px 0;padding:14px 18px 14px 22px;border-left:2px solid #B5856A;background:#F6EDDB;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:11pt;color:#3A3530;line-height:1.5;}
+.dossie-stage .sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:18px;}
+.dossie-stage .sign{padding-top:10px;border-top:1px solid #22201C;}
+.dossie-stage .sign .nm{font-family:'Cormorant Garamond',serif;font-size:13pt;color:#22201C;}
+.dossie-stage .sign .ro{font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.22em;text-transform:uppercase;color:#8C8275;margin-top:3px;font-weight:600;}
+.dossie-stage .two-col{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;}
+.dossie-stage .star-rule{display:flex;align-items:center;gap:12px;margin:14px 0 10px;}
+.dossie-stage .star-rule .ln{flex:1;height:1px;background:linear-gradient(90deg,transparent,#D9CDB6,transparent);}
+.dossie-stage .star-rule .st{color:#B5856A;font-size:11pt;}
+`;
+
+// Helpers internos
+const _esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const _firstBairro = bairros => {
+  const a = Array.isArray(bairros) ? bairros : (bairros?[bairros]:[]);
+  return a.length ? a[0] : '—';
+};
+
+// Constrói o HTML completo das 3 páginas do Dossiê (template visual da Mude),
+// já populado com os dados reais do lead e a imagem do mapa.
+function gerarDossieHTML(l, mapaDataUrl) {
+  const bairros        = Array.isArray(l.loc_bairros)     ? l.loc_bairros     : [];
+  const prox           = Array.isArray(l.loc_proximidade) ? l.loc_proximidade : [];
+  const diferenciais   = Array.isArray(l.diferenciais)    ? l.diferenciais    : [];
+  const padrao         = Array.isArray(l.padrao)          ? l.padrao.join(' · ') : (l.padrao || '—');
+  const estado         = Array.isArray(l.estado)          ? l.estado.join(' · ') : (l.estado || '—');
+  const prazoCompra    = Array.isArray(l.prazo_compra)    ? l.prazo_compra    : (l.prazo_compra?[l.prazo_compra]:[]);
+  const pgto           = Array.isArray(l.pgto)            ? l.pgto            : (l.pgto?[l.pgto]:[]);
+  const mask           = prazoToTimelineMask(prazoCompra);
+  const bairroPrincipal = _firstBairro(bairros);
+  const bairrosTail     = bairros.length > 1 ? `<br/><small>+ ${bairros.length-1} região${bairros.length>2?'ões':''}</small>` : '';
+  const proxChips       = prox.length ? prox.map(p=>`<span class="chip solid">${_esc(p)}</span>`).join('') : '<span class="small">Não informado</span>';
+  const tipologia       = l.tipologia || '—';
+  const quartos         = l.quartos   || '—';
+  const suites          = l.suites    || '0';
+  const vagas           = l.vagas     || '—';
+  const areaM2          = l.area_m2 ? `${l.area_m2}<small> m²</small>` : '—';
+  const precoMin        = fmtBRLCurto(l.preco_min);
+  const precoMax        = fmtBRLCurto(l.preco_max);
+  const sweet           = sweetSpot(l.preco_min, l.preco_max) || '—';
+  const pagModalidade   = pgto[0] || 'Não definido';
+  const dossNum         = dossieNum(l);
+  const dataExt         = dataPorExtenso();
+
+  // Determina o checklist: marca os que foram selecionados; outros mostram tracejado/cinza
+  const checklist = DIFERENCIAIS_CANON.map(item => {
+    const marcado = diferenciais.some(d => d.toLowerCase() === item.toLowerCase());
+    if (marcado) {
+      return `<div class="ci"><div class="bx"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6.5 L5 9 L10 3"/></svg></div><div class="tx">${_esc(item)}</div></div>`;
+    } else {
+      return `<div class="ci" style="opacity:.45"><div class="bx" style="border-style:dashed;background:transparent"></div><div class="tx" style="color:#8C8275;font-weight:400">${_esc(item)}</div></div>`;
+    }
+  }).join('');
+
+  // Diferenciais extras escolhidos pelo cliente que não estão na lista canônica
+  const extras = diferenciais.filter(d => !DIFERENCIAIS_CANON.some(c => c.toLowerCase()===d.toLowerCase()));
+  const checklistExtras = extras.length
+    ? extras.map(e => `<div class="ci"><div class="bx"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6.5 L5 9 L10 3"/></svg></div><div class="tx">${_esc(e)}</div></div>`).join('')
+    : '';
+
+  // Mapa: usa a imagem capturada do Leaflet; se não existir, mantém o gradiente padrão
+  const mapaImg = mapaDataUrl
+    ? `<img src="${mapaDataUrl}" alt="Mapa de Dourados — região selecionada"/>`
+    : `<div style="position:absolute;inset:0;display:grid;place-items:center;font-family:'Cormorant Garamond',serif;font-style:italic;color:#9A6A52;font-size:11pt">Dourados, MS</div>`;
+
+  // Logos: usa os base64 já existentes no projeto (MUDE_LOGO_B64 e SMP_LOGO_B64)
+  const mudeLogo = `data:image/png;base64,${typeof MUDE_LOGO_B64 !== 'undefined' ? MUDE_LOGO_B64 : ''}`;
+  const smpLogo  = `data:image/jpeg;base64,${typeof SMP_LOGO_B64 !== 'undefined' ? SMP_LOGO_B64 : ''}`;
+
+  return `
+<div class="dossie-stage">
+
+  <!-- ============ PAGE 1 · CAPA + RESUMO ============ -->
+  <section class="page">
+    <div class="cover-block">
+      <div class="cover-deco" aria-hidden="true">
+        <svg viewBox="0 0 200 200">
+          <defs><linearGradient id="dg1" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#D8A07F"/><stop offset="100%" stop-color="#8A5E47"/></linearGradient></defs>
+          <polygon points="100,10 115,90 195,100 115,110 100,190 85,110 5,100 85,90" fill="url(#dg1)"/>
+        </svg>
+      </div>
+      <div class="cover-top">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="lockup lg">
+            <div class="mude"><img src="${mudeLogo}" alt="Mude"/></div>
+            <div class="divider"></div>
+            <img class="smp" src="${smpLogo}" alt="Six Main Points"/>
+          </div>
+          <div class="cover-brand-text">
+            <div class="n1">SIX MAIN POINTS</div>
+            <div class="n2">Mude Imóveis</div>
+          </div>
+        </div>
+        <div class="cover-creci">CRECI-J 6052<br/>Dourados · MS<br/>mudeimobiliaria.com.br</div>
+      </div>
+      <div class="cover-eyebrow">Perfil Qualificado de Cliente · Dossiê ${new Date().getFullYear()}</div>
+      <h1 class="cover-title">Seis pontos para encontrar<br/>o <em>imóvel certo.</em></h1>
+      <p class="cover-sub">Um retrato preciso das preferências do cliente — para que cada visita conte e cada proposta faça sentido.</p>
+      <div class="cover-meta">
+        <div><div class="ck">Cliente</div><div class="cv">${_esc(l.nome||'—')}</div></div>
+        <div><div class="ck">Intenção</div><div class="cv">${_esc(intencaoTexto(l.interesse))}</div></div>
+        <div><div class="ck">Contato</div><div class="cv">${_esc(l.wpp||'—')}<span class="ms">${_esc(l.email||'')}</span></div></div>
+        <div><div class="ck">Qualificação</div><div class="cv">${dataExt}<span class="ms">Dossiê № ${dossNum}</span></div></div>
+      </div>
+    </div>
+
+    <div class="summary-head">
+      <div class="eyebrow" style="margin-bottom:6px">Visão geral · Os seis pontos</div>
+      <h2>O perfil <em>em uma vista.</em></h2>
+    </div>
+
+    <div class="grid-6">
+      <div class="cell"><span class="n">1</span><div class="k">Localização</div><div class="v">${_esc(bairroPrincipal)}${bairrosTail}</div><div class="vs">${_esc(prox.slice(0,3).join(' · ') || 'Sem preferência')}</div></div>
+      <div class="cell"><span class="n">2</span><div class="k">Tipologia</div><div class="v">${_esc(tipologia)}</div><div class="vs">${_esc(quartos)}Q · ${_esc(suites)} suítes · ${_esc(vagas)} vagas${l.area_m2?` · ${l.area_m2} m²`:''}</div></div>
+      <div class="cell"><span class="n">3</span><div class="k">Qualidade</div><div class="v">${_esc(padrao)}</div><div class="vs">${_esc(prazoCompra.join(' · ') || 'Prazo não definido')}</div></div>
+      <div class="cell"><span class="n">4</span><div class="k">Diferenciais</div><div class="v">${diferenciais.length} ${diferenciais.length===1?'item':'itens'}<br/>inegociáve${diferenciais.length===1?'l':'is'}</div><div class="vs">${_esc(diferenciais.slice(0,4).join(' · ') || '—')}</div></div>
+      <div class="cell"><span class="n">5</span><div class="k">Faixa de Preço</div><div class="v">${precoMin}<br/>— ${precoMax}</div><div class="vs">Investimento residencial</div></div>
+      <div class="cell"><span class="n">6</span><div class="k">Pagamento</div><div class="v">${_esc(pagModalidade)}</div><div class="vs">${pgto.length>1?_esc(pgto.slice(1).join(' · ')):'Modalidade declarada'}</div></div>
+    </div>
+
+    <footer class="page-footer">
+      <div>Mude Imóveis · CRECI-J 6052 · Documento confidencial</div>
+      <div>Pág. <span class="num">01</span> / 03</div>
+    </footer>
+  </section>
+
+  <!-- ============ PAGE 2 · PONTOS 1 · 2 · 3 ============ -->
+  <section class="page">
+    <header class="page-header">
+      <div class="left">
+        <div class="lockup sm"><div class="mude"><img src="${mudeLogo}" alt="Mude"/></div><div class="divider"></div><img class="smp" src="${smpLogo}" alt="Six Main Points"/></div>
+        <div class="crumbs">Six Main Points · <b>Pontos 1 · 2 · 3</b></div>
+      </div>
+      <div class="crumbs">${_esc(l.nome||'')}</div>
+    </header>
+
+    <div class="section-head">
+      <div class="section-num">01</div>
+      <div><div class="section-kicker">Onde morar</div><h3 class="section-name">Localização <em>& entorno.</em></h3></div>
+      <div class="section-tag"><b>Critério geográfico</b>Bairro · acesso · vizinhança</div>
+    </div>
+
+    <div class="two-col">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="field accent">
+          <div class="k">Região / Bairro preferido</div>
+          <div class="v">${_esc(bairroPrincipal)}${bairros.length>1?`<br/><small>+ ${bairros.length-1} outra${bairros.length>2?'s':''}</small>`:''}</div>
+        </div>
+        <div class="field">
+          <div class="k">Proximidade considerada importante</div>
+          <div class="chiplist" style="margin-top:8px">${proxChips}</div>
+        </div>
+        ${l.obs_loc ? `<div class="field"><div class="k">Observações</div><div class="v" style="font-size:11pt;line-height:1.3">${_esc(l.obs_loc)}</div></div>` : ''}
+      </div>
+      <div class="field" style="padding:0;overflow:hidden">
+        <div class="map" style="height:200px;margin:0;border:none;border-radius:0">${mapaImg}</div>
+        <div class="small" style="padding:6px 12px;text-align:center;border-top:.5px dotted #D9CDB6;background:#FAF5EA;font-size:7.5pt">Mapa real de Dourados · região${bairros.length>1?'ões':''} destacada${bairros.length>1?'s':''} pelo cliente</div>
+      </div>
+    </div>
+
+    <div class="star-rule"><div class="ln"></div><div class="st">✦</div><div class="ln"></div></div>
+
+    <div class="section-head">
+      <div class="section-num">02</div>
+      <div><div class="section-kicker">O imóvel ideal</div><h3 class="section-name">Tipologia <em>& configuração.</em></h3></div>
+      <div class="section-tag"><b>Especificações</b>Programa · áreas · vagas</div>
+    </div>
+
+    <div class="field-row f4">
+      <div class="field accent" style="grid-column:span 2"><div class="k">Tipo de imóvel</div><div class="v">${_esc(tipologia)}</div></div>
+      <div class="field"><div class="k">Quartos</div><div class="v">${String(quartos).padStart(2,'0')}</div></div>
+      <div class="field"><div class="k">Suítes</div><div class="v">${String(suites).padStart(2,'0')}</div></div>
+    </div>
+    <div class="field-row f3">
+      <div class="field"><div class="k">Vagas</div><div class="v">${String(vagas).padStart(2,'0')}</div></div>
+      <div class="field"><div class="k">Área mínima</div><div class="v">${areaM2}</div></div>
+      <div class="field"><div class="k">Estado do imóvel</div><div class="v" style="font-size:11.5pt;line-height:1.2">${_esc(estado)}</div></div>
+    </div>
+
+    <div class="star-rule"><div class="ln"></div><div class="st">✦</div><div class="ln"></div></div>
+
+    <div class="section-head">
+      <div class="section-num">03</div>
+      <div><div class="section-kicker">Padrão & prazo</div><h3 class="section-name">Qualidade <em>esperada.</em></h3></div>
+      <div class="section-tag"><b>Decisão de compra</b>Acabamento · urgência</div>
+    </div>
+
+    <div class="field-row f2">
+      <div class="field accent"><div class="k">Padrão de acabamento</div><div class="v">${_esc(padrao)}</div></div>
+      <div class="field"><div class="k">Prazo desejado</div><div class="v" style="font-size:13pt">${_esc(prazoCompra.join(' · ') || '—')}</div></div>
+    </div>
+
+    <div class="field">
+      <div class="k" style="margin-bottom:8px">Janela de decisão</div>
+      <div class="timeline">
+        <div class="t${mask[0]?' on':''}">Agora · 30 d</div>
+        <div class="t${mask[1]?' on':''}">30 — 60 d</div>
+        <div class="t${mask[2]?' on':''}">60 — 90 d</div>
+        <div class="t${mask[3]?' on':''}">90 — 180 d</div>
+        <div class="t${mask[4]?' on':''}">+ 180 d</div>
+      </div>
+    </div>
+
+    <footer class="page-footer"><div>Mude Imóveis · CRECI-J 6052 · Dourados, MS</div><div>Pág. <span class="num">02</span> / 03</div></footer>
+  </section>
+
+  <!-- ============ PAGE 3 · PONTOS 4 · 5 · 6 + ENCERRAMENTO ============ -->
+  <section class="page">
+    <header class="page-header">
+      <div class="left">
+        <div class="lockup sm"><div class="mude"><img src="${mudeLogo}" alt="Mude"/></div><div class="divider"></div><img class="smp" src="${smpLogo}" alt="Six Main Points"/></div>
+        <div class="crumbs">Six Main Points · <b>Pontos 4 · 5 · 6</b></div>
+      </div>
+      <div class="crumbs">${_esc(l.nome||'')}</div>
+    </header>
+
+    <div class="section-head">
+      <div class="section-num">04</div>
+      <div><div class="section-kicker">O que não pode faltar</div><h3 class="section-name">Diferenciais <em>inegociáveis.</em></h3></div>
+      <div class="section-tag"><b>${diferenciais.length} ite${diferenciais.length===1?'m':'ns'} marcado${diferenciais.length===1?'':'s'}</b>Filtre o portfólio por eles</div>
+    </div>
+
+    <div class="checklist">${checklist}${checklistExtras}</div>
+    ${l.obs_diferenciais ? `<div class="field" style="margin-top:10px"><div class="k">Observações</div><div class="v" style="font-size:11pt;line-height:1.3">${_esc(l.obs_diferenciais)}</div></div>` : ''}
+
+    <div class="star-rule"><div class="ln"></div><div class="st">✦</div><div class="ln"></div></div>
+
+    <div class="section-head">
+      <div class="section-num">05</div>
+      <div><div class="section-kicker">Investimento</div><h3 class="section-name">Faixa <em>de preço.</em></h3></div>
+      <div class="section-tag"><b>${precoMin.replace(/<[^>]+>/g,'').trim()} — ${precoMax.replace(/<[^>]+>/g,'').trim()}</b>Ticket residencial</div>
+    </div>
+
+    <div class="field-row f3">
+      <div class="field"><div class="k">Mínimo</div><div class="v">${precoMin}</div></div>
+      <div class="field accent"><div class="k">Máximo</div><div class="v">${precoMax}</div></div>
+      <div class="field"><div class="k">Sweet-spot</div><div class="v" style="font-size:12pt">${_esc(sweet)}</div></div>
+    </div>
+
+    <div class="field">
+      <div class="k">Faixa declarada</div>
+      <div class="pillbar">
+        <div class="min">${precoMin.replace(/<[^>]+>/g,'').replace('R$','').trim()}</div>
+        <div class="track"></div>
+        <div class="max">${precoMax.replace(/<[^>]+>/g,'').replace('R$','').trim()}</div>
+      </div>
+    </div>
+
+    <div class="star-rule"><div class="ln"></div><div class="st">✦</div><div class="ln"></div></div>
+
+    <div class="section-head">
+      <div class="section-num">06</div>
+      <div><div class="section-kicker">Como o cliente paga</div><h3 class="section-name">Forma <em>de pagamento.</em></h3></div>
+      <div class="section-tag"><b>${_esc(pagModalidade)}</b>Modalidade declarada</div>
+    </div>
+
+    <div class="field-row f3">
+      <div class="field accent"><div class="k">Modalidade</div><div class="v">${_esc(pagModalidade)}</div></div>
+      <div class="field" style="${pgto.length>1?'':'opacity:.5'}"><div class="k">Outras modalidades</div><div class="v" style="font-size:11pt;line-height:1.2">${pgto.length>1?_esc(pgto.slice(1).join(' · ')):'Não declarado'}</div></div>
+      <div class="field" style="${l.obs_permuta?'':'opacity:.5'}"><div class="k">Permuta</div><div class="v" style="font-size:11pt;line-height:1.2">${_esc(l.obs_permuta||'Não declarado')}</div></div>
+    </div>
+
+    ${l.obs_finais ? `<div class="quote">${_esc(l.obs_finais)}</div>` : `<div class="quote">${pagModalidade.toLowerCase().includes('vista') ? 'Maior liberdade de negociação · prioridade a imóveis prontos para escritura imediata.' : 'Cliente qualificado · perfil consolidado · pronto para visitas direcionadas.'}</div>`}
+
+    <div class="sign-grid">
+      <div class="sign"><div class="nm">________________________________</div><div class="ro">Consultor responsável · Mude Imóveis</div></div>
+      <div class="sign"><div class="nm">${new Date().toLocaleDateString('pt-BR')}</div><div class="ro">Data de validação</div></div>
+    </div>
+
+    <footer class="page-footer"><div>Mude Imóveis · CRECI-J 6052 · mudeimobiliaria.com.br</div><div>Pág. <span class="num">03</span> / 03</div></footer>
+  </section>
+</div>`;
+}
+
+// Renderiza o Dossiê em um container oculto, captura cada página com
+// html2canvas e gera um PDF A4 de 3 páginas. Retorna o objeto jsPDF.
+async function gerarDossiePDF(salvarArquivo = true) {
+  const l = lead;
+
+  // Verifica dependências críticas
+  if (!window.jspdf || !window.html2canvas) {
+    alert('Bibliotecas de PDF não carregadas. Recarregue a página (Ctrl+Shift+R) e tente novamente.');
+    return null;
+  }
+  const { jsPDF } = window.jspdf;
+
+  toast('Gerando dossiê premium…');
+  await new Promise(r => setTimeout(r, 50)); // deixa o toast aparecer
+
+  // 1) Renderiza o mapa real de Dourados
+  const mapaDataUrl = await renderMapaBairros(l.loc_bairros);
+
+  // 2) Monta o HTML do Dossiê em container oculto
+  const cssStyle = document.createElement('style');
+  cssStyle.setAttribute('data-dossie', '1');
+  cssStyle.textContent = DOSSIE_CSS;
+  document.head.appendChild(cssStyle);
+
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;z-index:-1;';
+  host.innerHTML = gerarDossieHTML(l, mapaDataUrl);
+  document.body.appendChild(host);
+
+  // 3) Garante que as fontes do Google Fonts foram carregadas
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(_){}
+  await new Promise(r => setTimeout(r, 250));
+
+  // 4) Captura cada página
+  const paginas = host.querySelectorAll('.page');
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const PW = 210, PH = 297;
+
+  for (let i=0; i<paginas.length; i++) {
+    try {
+      const canvas = await html2canvas(paginas[i], {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#FBF7EF',
+        logging: false,
+        width: 794,
+        height: 1123,
+        windowWidth: 794,
+        windowHeight: 1123,
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      if (i > 0) doc.addPage();
+      doc.addImage(imgData, 'JPEG', 0, 0, PW, PH);
+    } catch(e) {
+      console.warn('[dossie] falha em capturar página', i+1, e);
+    }
+  }
+
+  // 5) Limpa o DOM oculto
+  try { host.remove(); cssStyle.remove(); } catch(_){}
+
+  // 6) Salva o arquivo
+  if (salvarArquivo) {
+    const nomeArq = 'SixMainPoints_'+(l.nome||'Cliente').replace(/\s+/g,'_')+'_Dossie.pdf';
+    doc.save(nomeArq);
+    toast('Dossiê pronto!');
+  }
+  return doc;
+}
+
+// Gera o corpo HTML do e-mail para a Mude, no MESMO padrão visual
+// do Dossiê (capa enxuta + grid dos 6 pontos), pronto para arquivamento
+// na caixa de entrada do Mario.
+// Formato: tabela HTML (compatível com Gmail/Outlook/Apple Mail), sem
+// dependência de CSS externo. Cores e fontes inline.
+function gerarEmailHTML(l) {
+  const bairros = Array.isArray(l.loc_bairros) ? l.loc_bairros : [];
+  const prox    = Array.isArray(l.loc_proximidade) ? l.loc_proximidade : [];
+  const dif     = Array.isArray(l.diferenciais) ? l.diferenciais : [];
+  const padrao  = Array.isArray(l.padrao) ? l.padrao.join(' · ') : (l.padrao||'—');
+  const estado  = Array.isArray(l.estado) ? l.estado.join(' · ') : (l.estado||'—');
+  const prazoC  = Array.isArray(l.prazo_compra) ? l.prazo_compra.join(' · ') : (l.prazo_compra||'—');
+  const pgto    = Array.isArray(l.pgto) ? l.pgto.join(' · ') : (l.pgto||'—');
+  const fmtBRL  = v => v ? 'R$ '+Number(v).toLocaleString('pt-BR') : '—';
+  const dossNum = dossieNum(l);
+  const dataExt = dataPorExtenso();
+
+  // Helper para cada ponto numerado
+  const ponto = (n, titulo, valor, sub) => `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-bottom:8px">
+      <tr>
+        <td style="width:40px;vertical-align:top;padding:14px 12px;background:#F2E7D2;border:1px solid #D9CDB6;border-right:none;font-family:Georgia,'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:#B5856A;text-align:center;line-height:1">${n}</td>
+        <td style="vertical-align:top;padding:12px 16px;background:#FAF5EA;border:1px solid #D9CDB6;border-left:none">
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#8C8275;font-weight:600;margin-bottom:6px">${_esc(titulo)}</div>
+          <div style="font-family:Georgia,'Cormorant Garamond',serif;font-size:18px;font-weight:500;color:#22201C;line-height:1.2;margin-bottom:4px">${valor}</div>
+          ${sub ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#5A574F;line-height:1.5">${sub}</div>` : ''}
+        </td>
+      </tr>
+    </table>`;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Dossiê Six Main Points</title></head>
+<body style="margin:0;padding:0;background:#E3D9C5;font-family:Arial,Helvetica,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#E3D9C5;padding:24px 12px">
+  <tr><td align="center">
+    <table width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;background:#FBF7EF;border:1px solid #D9CDB6">
+
+      <!-- TOPO CREME COM DEGRADÊ -->
+      <tr><td style="padding:32px 36px 24px;background:#F2E7D2;border-bottom:1px solid #D9CDB6">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="font-family:Georgia,serif;font-size:11px;letter-spacing:2px;color:#9A6A52;font-weight:600;text-transform:uppercase">SIX MAIN POINTS · MUDE IMÓVEIS</td>
+            <td align="right" style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:1.5px;color:#8C8275;text-transform:uppercase;line-height:1.6">CRECI-J 6052 · Dourados/MS</td>
+          </tr>
+        </table>
+        <div style="margin-top:18px;font-family:Arial,sans-serif;font-size:10px;letter-spacing:3px;color:#9A6A52;font-weight:600;text-transform:uppercase">Novo Lead Qualificado · Dossiê ${new Date().getFullYear()}</div>
+        <h1 style="margin:8px 0 6px;font-family:Georgia,'Cormorant Garamond',serif;font-weight:300;font-size:36px;line-height:1.05;color:#22201C">${_esc(l.nome||'—')}</h1>
+        <div style="font-family:Georgia,serif;font-style:italic;color:#3A3530;font-size:14px">${_esc(intencaoTexto(l.interesse))} · ${dataExt}</div>
+      </td></tr>
+
+      <!-- META: contato + dossiê # -->
+      <tr><td style="padding:18px 36px;background:#FBF7EF;border-bottom:1px solid #D9CDB6">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td width="33%" style="vertical-align:top">
+              <div style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:2px;color:#8C8275;font-weight:600;text-transform:uppercase;margin-bottom:4px">WhatsApp</div>
+              <div style="font-family:Georgia,serif;font-size:14px;color:#22201C">${_esc(l.wpp||'—')}</div>
+            </td>
+            <td width="40%" style="vertical-align:top">
+              <div style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:2px;color:#8C8275;font-weight:600;text-transform:uppercase;margin-bottom:4px">E-mail</div>
+              <div style="font-family:Georgia,serif;font-size:14px;color:#22201C;word-break:break-all">${_esc(l.email||'—')}</div>
+            </td>
+            <td width="27%" style="vertical-align:top">
+              <div style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:2px;color:#8C8275;font-weight:600;text-transform:uppercase;margin-bottom:4px">Dossiê №</div>
+              <div style="font-family:Georgia,serif;font-size:14px;color:#9A6A52;font-weight:500">${dossNum}</div>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- 6 PONTOS -->
+      <tr><td style="padding:24px 36px 12px">
+        <div style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:3px;color:#9A6A52;font-weight:600;text-transform:uppercase;margin-bottom:6px">Os seis pontos</div>
+        <h2 style="margin:0 0 18px;font-family:Georgia,serif;font-weight:400;font-size:22px;color:#22201C">O perfil <em style="color:#9A6A52;font-weight:300">em uma vista.</em></h2>
+
+        ${ponto(1, 'Localização',     _esc(bairros.join(' · ') || 'Sem preferência'),                _esc(prox.join(' · ') || 'Proximidades não informadas'))}
+        ${ponto(2, 'Tipologia',       _esc(l.tipologia||'—'),                                       `${_esc(String(l.quartos||'—'))}Q · ${_esc(String(l.suites||'0'))} suítes · ${_esc(String(l.vagas||'—'))} vagas${l.area_m2?` · ${_esc(String(l.area_m2))} m²`:''} · ${_esc(estado)}`)}
+        ${ponto(3, 'Qualidade',       _esc(padrao),                                                  `Prazo: ${_esc(prazoC)}`)}
+        ${ponto(4, 'Diferenciais',    dif.length ? _esc(dif.join(' · ')) : '<span style="color:#8C8275">Nenhum item marcado</span>', l.obs_diferenciais ? _esc(l.obs_diferenciais) : '')}
+        ${ponto(5, 'Faixa de Preço',  `${_esc(fmtBRL(l.preco_min))} — ${_esc(fmtBRL(l.preco_max))}`, sweetSpot(l.preco_min, l.preco_max) ? `Sweet-spot: ${sweetSpot(l.preco_min, l.preco_max)}` : '')}
+        ${ponto(6, 'Pagamento',       _esc(pgto),                                                    `${l.obs_permuta?'Permuta: '+_esc(l.obs_permuta)+' · ':''}Prazo p/ fechar: ${_esc(l.prazo_negocio||'—')}`)}
+
+        ${l.obs_finais ? `
+        <div style="margin:14px 0 6px;padding:14px 18px;border-left:3px solid #B5856A;background:#F6EDDB;font-family:Georgia,serif;font-style:italic;font-size:13px;color:#3A3530;line-height:1.5">${_esc(l.obs_finais)}</div>
+        ` : ''}
+      </td></tr>
+
+      ${l.quer_consultor ? `
+      <!-- AÇÃO QUENTE: cliente pediu consultor -->
+      <tr><td style="padding:0 36px 8px">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#9A6A52">
+          <tr><td style="padding:14px 18px;font-family:Arial,sans-serif;font-size:12px;color:#FBF7EF;letter-spacing:1.5px;font-weight:600;text-transform:uppercase">
+            ★ Cliente solicitou contato direto com consultor
+          </td></tr>
+        </table>
+      </td></tr>` : ''}
+
+      <!-- RODAPÉ -->
+      <tr><td style="padding:18px 36px 28px;border-top:1px solid #D9CDB6;background:#F2E7D2">
+        <div style="font-family:Arial,sans-serif;font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:#8C8275;text-align:center;line-height:1.7">
+          Mude Imóveis · CRECI-J 6052 · mudeimobiliaria.com.br<br/>
+          <span style="color:#9A6A52;font-weight:600">Dossiê №&nbsp;${dossNum}</span>
+        </div>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
+}
+
+// Mantém o nome antigo da função como alias (para o botão atual seguir funcionando)
+async function baixarResumo_OLD() {
   const { jsPDF } = window.jspdf;
   const l = lead;
   // Captura a escolha do consultor
