@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Six Main Points — Mude Imóveis</title>
-<!-- v3.3 build: 2026-05-27 — Dossiê premium (3p A4) + e-mail HTML estilizado -->
+<!-- v3.4 build: 2026-05-27 — fix sweet-spot M/K + ajuste payload e-mail -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Outfit:wght@300;400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -1762,10 +1762,16 @@ function prazoToTimelineMask(prazoArr) {
 // Constrói o sweet-spot da faixa de preço (~30% acima do mínimo até 90% do máximo)
 function sweetSpot(min, max) {
   if (!min || !max) return '';
-  const s = Math.round(min*1.3/1000)/10;
-  const e = Math.round(max*0.9/1000)/10;
+  const s = Number(min) * 1.3;
+  const e = Number(max) * 0.9;
   if (e <= s) return '';
-  const fmtK = v => v >= 1000 ? (v/1000).toFixed(2).replace(/\.?0+$/,'')+'M' : Math.round(v*100)/100+'K';
+  const fmtK = v => {
+    if (v >= 1e6) {
+      const m = (v/1e6).toFixed(1).replace(/\.0$/,'').replace('.', ',');
+      return m + 'M';
+    }
+    return Math.round(v/1000) + 'K';
+  };
   return `R$ ${fmtK(s)} — ${fmtK(e)}`;
 }
 
