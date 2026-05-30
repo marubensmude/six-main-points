@@ -1415,12 +1415,15 @@
     <!-- Título -->
     <h2 class="success-title" style="margin-bottom:12px;">Perfil enviado<br>com sucesso!</h2>
     <p class="success-sub" style="margin-bottom:32px;">
-      Obrigado, <strong id="success-name"></strong>. Seu perfil foi salvo e nossa equipe entrará em contato pelo WhatsApp para apresentar as melhores oportunidades para você.
+      Obrigado, <strong id="success-name"></strong>. <span id="success-msg">Seu perfil foi salvo e nossa equipe entrará em contato pelo WhatsApp para apresentar as melhores oportunidades para você.</span>
     </p>
 
 
     <!-- Dossiê exibido automaticamente na tela -->
-    <p style="font-family:'Manrope',sans-serif;font-size:11px;letter-spacing:.22em;text-transform:uppercase;font-weight:600;color:var(--muted, #9A6A52);margin:0 0 14px;">Seu Dossiê Personalizado</p>
+    <div style="text-align:center;margin:0 0 18px;">
+      <p style="font-family:'Cormorant Garamond',Georgia,serif;font-size:34px;line-height:1.15;font-weight:600;color:#22201C;margin:0 0 8px;">Seu Dossiê Personalizado</p>
+      <p style="font-family:'Manrope',sans-serif;font-size:13px;line-height:1.5;color:var(--muted, #8C8275);margin:0;">Confira abaixo o resumo do seu perfil de compra. Você também pode baixá-lo em PDF.</p>
+    </div>
     <div id="dossie-preview" style="width:100%;margin:0 0 28px;"></div>
 
     <!-- Botões -->
@@ -1760,11 +1763,28 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
       lead_utm_campaign: (lead.attribution && lead.attribution.utm_campaign) || '—',
       lead_utm_content:  (lead.attribution && lead.attribution.utm_content)  || '—',
       lead_attribution_json: JSON.stringify(lead.attribution || {}, null, 2)
-    }).then(() => toast('E-mail de notificacao enviado!')).catch(err => {
-      console.warn('EmailJS erro completo:', JSON.stringify(err));
-      alert('ERRO AO ENVIAR E-MAIL\n\nDetalhes: ' + JSON.stringify(err));
+    }).then(() => {
+      console.info('[EmailJS] notificação enviada.');
+    }).catch(err => {
+      // Falha silenciosa: o lead JÁ foi salvo (Supabase + navegador).
+      // O e-mail é apenas uma notificação interna para a Mude, então o
+      // cliente NUNCA deve ver erro de envio. Detalhe fica só no console.
+      console.warn('[EmailJS] falha ao enviar notificação interna:', JSON.stringify(err));
     });
   }
+
+  // Mensagem da tela de sucesso muda conforme o cliente pediu (ou não)
+  // o contato de um consultor para enviar sugestões de imóveis.
+  try {
+    const msgEl = document.getElementById('success-msg');
+    if (msgEl) {
+      if (lead.quer_consultor) {
+        msgEl.textContent = 'Seu perfil foi salvo e nossa equipe entrará em contato pelo WhatsApp para apresentar as melhores oportunidades para você.';
+      } else {
+        msgEl.innerHTML = 'Seu perfil foi salvo com sucesso. Agora sabemos exatamente o que você procura — e é esse perfil que nos permite encontrar o imóvel certo para você. Muitas das melhores oportunidades de Dourados não chegam aos portais: elas passam primeiro pela nossa equipe. Quando quiser que a gente faça essa busca por você, é só chamar no WhatsApp — seria uma pena deixar o imóvel ideal passar. Seu Dossiê Personalizado está logo abaixo.';
+      }
+    }
+  } catch(e) { console.warn('msg sucesso:', e); }
 
   showScreen('success');
   try { mostrarDossieNaTela(); } catch(e){ console.warn('preview dossie:', e); }
