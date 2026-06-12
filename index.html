@@ -1134,7 +1134,7 @@
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
         <div class="field" style="margin-bottom:10px;">
           <label>Cidade</label>
-          <input type="text" id="loc-cidade" value="Dourados" placeholder="Ex: Dourados">
+          <input type="text" id="loc-cidade" value="Dourados" placeholder="Ex: Dourados" oninput="atualizarLocalidades()">
         </div>
         <div class="field" style="margin-bottom:10px;">
           <label>Estado (UF)</label>
@@ -1148,30 +1148,10 @@
       <p class="step-desc" style="margin:2px 0 16px;font-size:12px;">Os bairros abaixo se aplicam a <strong>Dourados</strong>. Para outra cidade, indique acima — vamos considerar a cidade e o distrito informados.</p>
 
       <span class="section-label">Bairros e regiões <small style="font-weight:300;letter-spacing:0;text-transform:none;color:var(--gold-dark)">— se for em Dourados</small></span>
-      <div class="bairro-grid" id="bairros-grid">
-        <div class="bairro-chip" onclick="toggleChip(this)">Centro</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Região Norte — Condomínios</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Região Jardim América</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Região Jardim Girassol</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Região Santa Fé</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Região Leste — Vila Planalto</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Região Oeste</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Região Sul</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Zona Rural / Chácara</div>
-        <div class="bairro-chip" onclick="toggleChip(this)">Qualquer região</div>
-      </div>
+      <div class="bairro-grid" id="bairros-grid"></div>
 
       <span class="section-label">Proximidade importante</span>
-      <div class="option-grid">
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">🏫</span><span class="opt-label">Escolas</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">🛒</span><span class="opt-label">Supermercados / Conveniência</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">🏋️</span><span class="opt-label">Academia</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">🏥</span><span class="opt-label">Hospitais / Clínicas</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">🏢</span><span class="opt-label">Centro Comercial</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">🎓</span><span class="opt-label">Universidade</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">🏭</span><span class="opt-label">Grandes Empresas</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">🛣️</span><span class="opt-label">Acesso Rápido</span></div>
-      </div>
+      <div class="option-grid" id="prox-grid"></div>
 
       <div class="field">
         <label>Alguma referência ou observação sobre localização?</label>
@@ -1184,55 +1164,29 @@
       <div class="step-head">
         <span class="step-eyebrow">Ponto 2 — Tipologia</span>
         <h2 class="step-title">Qual tipo de imóvel ideal?</h2>
-        <p class="step-desc">Escolha o tipo e defina as características essenciais de espaço.</p>
+        <p class="step-desc">Escolha a família e o tipo — as perguntas se ajustam ao imóvel que você procura.</p>
       </div>
 
-      <span class="section-label">Tipo de imóvel</span>
-      <div class="option-grid">
-        <div class="opt-card" onclick="selUnico(this,'tipo')" data-group="tipo"><span class="opt-icon">🏠</span><span class="opt-label">Casa em condomínio</span></div>
-        <div class="opt-card" onclick="selUnico(this,'tipo')" data-group="tipo"><span class="opt-icon">🏡</span><span class="opt-label">Casa de rua</span></div>
-        <div class="opt-card" onclick="selUnico(this,'tipo')" data-group="tipo"><span class="opt-icon">🏢</span><span class="opt-label">Apartamento</span></div>
-        <div class="opt-card" onclick="selUnico(this,'tipo')" data-group="tipo"><span class="opt-icon">🌾</span><span class="opt-label">Chácara / Sítio</span></div>
-        <div class="opt-card" onclick="selUnico(this,'tipo')" data-group="tipo"><span class="opt-icon">📐</span><span class="opt-label">Lote / Terreno</span></div>
-        <div class="opt-card" onclick="selUnico(this,'tipo')" data-group="tipo"><span class="opt-icon">🏬</span><span class="opt-label">Sala / Ponto comercial</span></div>
-        <div class="opt-card" onclick="selUnico(this,'tipo')" data-group="tipo"><span class="opt-icon">🏭</span><span class="opt-label">Galpão / Barracão</span></div>
-        <div class="opt-card" onclick="selUnico(this,'tipo')" data-group="tipo"><span class="opt-icon">🤔</span><span class="opt-label">Ainda não sei</span></div>
+      <span class="section-label">Família do imóvel</span>
+      <div class="option-grid" id="familia-grid">
+        <div class="opt-card" onclick="selFamilia(this,'residencial')" data-group="familia"><span class="opt-icon">🏠</span><span class="opt-label">Residencial</span></div>
+        <div class="opt-card" onclick="selFamilia(this,'rural')" data-group="familia"><span class="opt-icon">🌾</span><span class="opt-label">Rural</span></div>
+        <div class="opt-card" onclick="selFamilia(this,'comercial')" data-group="familia"><span class="opt-icon">🏬</span><span class="opt-label">Comercial</span></div>
+        <div class="opt-card" onclick="selFamilia(this,'terreno')" data-group="familia"><span class="opt-icon">📐</span><span class="opt-label">Terreno</span></div>
+        <div class="opt-card" onclick="selFamilia(this,'descoberta')" data-group="familia"><span class="opt-icon">🤔</span><span class="opt-label">Ainda não sei</span></div>
       </div>
 
-      <span class="section-label">Características mínimas</span>
-      <div class="counter-row">
-        <span class="counter-label">Quartos</span>
-        <div class="counter-ctrl">
-          <button class="counter-btn" onclick="counter('quartos',-1)">−</button>
-          <span class="counter-val" id="val-quartos">2</span>
-          <button class="counter-btn" onclick="counter('quartos',1)">+</button>
-        </div>
-      </div>
-      <div class="counter-row">
-        <span class="counter-label">Suítes</span>
-        <div class="counter-ctrl">
-          <button class="counter-btn" onclick="counter('suites',-1)">−</button>
-          <span class="counter-val" id="val-suites">1</span>
-          <button class="counter-btn" onclick="counter('suites',1)">+</button>
-        </div>
-      </div>
-      <div class="counter-row">
-        <span class="counter-label">Vagas de garagem</span>
-        <div class="counter-ctrl">
-          <button class="counter-btn" onclick="counter('vagas',-1)">−</button>
-          <span class="counter-val" id="val-vagas">2</span>
-          <button class="counter-btn" onclick="counter('vagas',1)">+</button>
-        </div>
+      <div id="subtipo-wrap" style="display:none">
+        <span class="section-label">Tipo de imóvel</span>
+        <div class="option-grid" id="subtipo-grid"></div>
       </div>
 
-      <span class="section-label">Área total desejada</span>
-      <div class="slider-wrap">
-        <div class="slider-val-display">
-          <span id="area-display">200</span><small> m²</small>
-        </div>
-        <div class="slider-labels"><span>50 m²</span><span>1.000 m²</span></div>
-        <input type="range" min="50" max="1000" step="10" value="200" id="area-slider"
-               oninput="document.getElementById('area-display').textContent=this.value">
+      <!-- Características próprias do tipo (geradas conforme a escolha) -->
+      <div id="tipo-campos"></div>
+
+      <div class="field" id="obs-tipologia-wrap" style="display:none">
+        <label>Quer acrescentar algo sobre o imóvel?</label>
+        <textarea id="obs-tipologia" placeholder="Escreva livremente o que as opções acima não cobriram..."></textarea>
       </div>
     </div>
 
@@ -1245,22 +1199,10 @@
       </div>
 
       <span class="section-label">Padrão de acabamento <small style="font-weight:300;letter-spacing:0;text-transform:none;color:var(--gold-dark)">— selecione quantos quiser</small></span>
-      <div class="option-grid">
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="padrao"><span class="opt-icon">🏘️</span><span class="opt-label">MCMV</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="padrao"><span class="opt-icon">🥈</span><span class="opt-label">Médio padrão</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="padrao"><span class="opt-icon">🥇</span><span class="opt-label">Alto padrão</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="padrao"><span class="opt-icon">💎</span><span class="opt-label">Luxo</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="padrao"><span class="opt-icon">👑</span><span class="opt-label">Ultra luxo</span></div>
-      </div>
+      <div class="option-grid" id="qual-padrao"></div>
 
       <span class="section-label">Estado do imóvel <small style="font-weight:300;letter-spacing:0;text-transform:none;color:var(--gold-dark)">— selecione quantos quiser</small></span>
-      <div class="option-grid">
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="estado"><span class="opt-icon">✨</span><span class="opt-label">Novo / na planta</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="estado"><span class="opt-icon">🏗️</span><span class="opt-label">Em construção</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="estado"><span class="opt-icon">🏠</span><span class="opt-label">Seminovo conservado</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="estado"><span class="opt-icon">🔨</span><span class="opt-label">Para reformar</span></div>
-        <div class="opt-card" onclick="toggleOpt(this)" data-group="estado"><span class="opt-icon">🔄</span><span class="opt-label">Qualquer um</span></div>
-      </div>
+      <div class="option-grid" id="qual-estado"></div>
 
       <span class="section-label">Prazo desejado para a compra <small style="font-weight:300;letter-spacing:0;text-transform:none;color:var(--gold-dark)">— selecione quantos quiser</small></span>
       <div class="option-grid">
@@ -1268,6 +1210,11 @@
         <div class="opt-card" onclick="toggleOpt(this)" data-group="prazo"><span class="opt-icon">📅</span><span class="opt-label">Curto (3 a 6 meses)</span></div>
         <div class="opt-card" onclick="toggleOpt(this)" data-group="prazo"><span class="opt-icon">🗓️</span><span class="opt-label">Médio (6 a 12 meses)</span></div>
         <div class="opt-card" onclick="toggleOpt(this)" data-group="prazo"><span class="opt-icon">🌅</span><span class="opt-label">Sem pressa</span></div>
+      </div>
+
+      <div class="field">
+        <label>Quer acrescentar algo sobre o padrão/condições?</label>
+        <textarea id="obs-qualidade" placeholder="Ex: aceito reformar se o preço compensar; prefiro acabamento neutro..."></textarea>
       </div>
     </div>
 
@@ -1279,32 +1226,7 @@
         <p class="step-desc">Marque os itens inegociáveis para você. Selecione quantos quiser.</p>
       </div>
 
-      <div class="diff-grid">
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Piscina</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Churrasqueira</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Área gourmet</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Academia / Fitness</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Segurança 24h</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Portaria</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Câmeras CFTV</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Home office</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Energia solar</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Energia Fotovoltaica</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Área verde / jardim</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Playground</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Espaço kids</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Gerador</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Depósito / Despensa</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Varanda / Sacada</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Quintal</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Quintal grande</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Automação / Smart</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Pet friendly</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Quadra esportiva</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Salão de festas</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Poço artesiano</span></div>
-        <div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">Lago / Açude</span></div>
-      </div>
+      <div class="diff-grid" id="diff-grid-dyn"></div>
 
       <div class="field">
         <label>Algo que já procurou e não encontrou?</label>
@@ -1569,6 +1491,216 @@ let lead = {};
 let interesseSel = 'Comprar para morar';
 const counters = { quartos: 2, suites: 1, vagas: 2 };
 
+// ═══════════════════════════════════════════════════════════════════════
+//  MOTOR ADAPTATIVO — Localização dinâmica + Tipologia/Qualidade/Diferenciais
+//  por tipo de imóvel. Reaproveita os mesmos componentes visuais existentes.
+// ═══════════════════════════════════════════════════════════════════════
+let familiaSel = '', subtipoSel = '', camposAtuais = [];
+
+// ---- Localidades dinâmicas (Dourados x outras cidades) ----
+const DOURADOS_BAIRROS = ['Centro','Região Norte — Condomínios','Região Jardim América','Região Jardim Girassol','Região Santa Fé','Região Leste — Vila Planalto','Região Oeste','Região Sul','Zona Rural / Chácara','Qualquer região'];
+const GENERICO_BAIRROS = ['Centro / região central','Bairro residencial','Condomínio fechado','Próximo ao centro','Zona rural / arredores','Qualquer região'];
+const DOURADOS_PROX = [['🏫','Escolas'],['🛒','Supermercados / Conveniência'],['🏋️','Academia'],['🏥','Hospitais / Clínicas'],['🏢','Centro Comercial'],['🎓','Universidade'],['🏭','Grandes Empresas'],['🛣️','Acesso Rápido']];
+const GENERICO_PROX = [['🏫','Escolas'],['🛒','Comércio / Conveniência'],['🏥','Saúde'],['🛣️','Acesso / asfalto bom'],['🏙️','Cidade próxima'],['🌳','Natureza / tranquilidade']];
+
+function ehCidadeDourados() {
+  const c = (document.getElementById('loc-cidade') ? document.getElementById('loc-cidade').value : '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  return !c || c === 'dourados';
+}
+function atualizarLocalidades() {
+  const dourados = ehCidadeDourados();
+  const bg = document.getElementById('bairros-grid');
+  if (bg) bg.innerHTML = (dourados ? DOURADOS_BAIRROS : GENERICO_BAIRROS).map(b => '<div class="bairro-chip" onclick="toggleChip(this)">' + b + '</div>').join('');
+  const pg = document.getElementById('prox-grid');
+  if (pg) pg.innerHTML = (dourados ? DOURADOS_PROX : GENERICO_PROX).map(p => '<div class="opt-card" onclick="toggleOpt(this)" data-group="prox"><span class="opt-icon">' + p[0] + '</span><span class="opt-label">' + p[1] + '</span></div>').join('');
+}
+
+// ---- Listas reaproveitáveis ----
+const QUAL_RES   = { padrao:['MCMV','Médio padrão','Alto padrão','Luxo','Ultra luxo'], estado:['Novo / na planta','Em construção','Seminovo conservado','Para reformar','Qualquer um'] };
+const QUAL_RURAL = { padrao:['Simples','Médio','Alto padrão','Luxo'], estado:['Pronto para uso','Precisa benfeitorias','Em formação','Qualquer um'] };
+const QUAL_COM   = { padrao:['Simples','Médio','Alto padrão'], estado:['Pronto para operar','Precisa adequação','Novo','Para reformar'] };
+const QUAL_TER   = { padrao:['Sem infraestrutura','Infra parcial','Infra completa','Pronto para construir'], estado:['Limpo','Com projeto aprovado','Bruto / a limpar','Indiferente'] };
+
+const DIF_CASA       = ['Piscina','Churrasqueira','Área gourmet','Quintal','Home office','Energia solar / fotovoltaica','Automação / Smart','Pet friendly','Varanda','Depósito / Despensa'];
+const DIF_COND       = DIF_CASA.concat(['Segurança 24h','Portaria','Lazer completo','Quadra esportiva','Salão de festas','Playground','Espaço kids']);
+const DIF_APTO       = ['Varanda gourmet','Vista livre','Andar alto','Piscina','Academia','Salão de festas','Portaria 24h','Vaga coberta','Pet friendly','Espaço kids'];
+const DIF_CHACARA    = ['Piscina','Área gourmet / lazer','Campo / gramado','Pomar','Poço artesiano','Nascente','Açude / lago','Energia (rede/solar)','Casa de caseiro','Pet friendly'];
+const DIF_SITIO      = ['Pasto formado','Curral','Casa de caseiro','Galpão','Pomar / horta','Açude','Energia','Reserva de mata','Acesso por estrada boa'];
+const DIF_FAZENDA    = ['Curral / brete / balança','Casa-sede','Casa de funcionários','Galpões / barracões','Silos','Açudes / rios','Poços','Energia trifásica','Pista de pouso','Confinamento','Reserva legal regularizada','Pivôs de irrigação'];
+const DIF_PESQUEIRO  = ['Frente para rio navegável','Píer / atracadouro','Rampa para barco','Quiosques / ranchos','Área gourmet','Tanques de peixes','Camping / chalés','Energia','Casa-sede','Acesso por estrada boa'];
+const DIF_COMERCIAL  = ['Localização de fluxo','Estacionamento amplo','Fachada / vitrine','Acessibilidade','Ar-condicionado central','Gerador','Sistema de segurança','Mezanino'];
+const DIF_GALPAO     = ['Pé-direito alto','Docas niveladas','Pátio de manobra','Ponte rolante','Energia trifásica','Refeitório / vestiários','Fácil acesso a rodovia','Escritórios'];
+const DIF_TERRENO    = ['Topografia plana','Esquina','Murado','Infraestrutura completa','Documentação regular','Aceita financiamento','Pronto para construir'];
+const DIF_AREA_RURAL = ['Água abundante','Topografia mecanizável','Frente para rodovia','Energia próxima','Reserva regularizada','Acesso por asfalto'];
+
+// ---- Catálogo de tipos (famílias → subtipos) ----
+const CATALOGO = {
+  residencial: { label:'Residencial', subtipos: {
+    casa_cond: { label:'Casa em condomínio', icon:'🏠', qualidade:QUAL_RES, diferenciais:DIF_COND,
+      campos:[ {t:'counter',k:'quartos',label:'Quartos',def:3},{t:'counter',k:'suites',label:'Suítes',def:1},{t:'counter',k:'vagas',label:'Vagas de garagem',def:2},
+        {t:'slider',k:'area_m2',label:'Área construída',min:50,max:1500,step:10,def:200,unit:'m²'},
+        {t:'slider',k:'area_terreno',label:'Área do terreno',min:100,max:5000,step:50,def:360,unit:'m²'},
+        {t:'sel',k:'pavimentos',label:'Pavimentos',opts:['Térrea','Sobrado','Indiferente']} ] },
+    casa_rua: { label:'Casa de rua', icon:'🏡', qualidade:QUAL_RES, diferenciais:DIF_CASA,
+      campos:[ {t:'counter',k:'quartos',label:'Quartos',def:3},{t:'counter',k:'suites',label:'Suítes',def:1},{t:'counter',k:'vagas',label:'Vagas de garagem',def:2},
+        {t:'slider',k:'area_m2',label:'Área construída',min:50,max:1500,step:10,def:180,unit:'m²'},
+        {t:'slider',k:'area_terreno',label:'Área do terreno',min:100,max:5000,step:50,def:300,unit:'m²'},
+        {t:'sel',k:'pavimentos',label:'Pavimentos',opts:['Térrea','Sobrado','Indiferente']} ] },
+    apartamento: { label:'Apartamento', icon:'🏢', qualidade:QUAL_RES, diferenciais:DIF_APTO,
+      campos:[ {t:'counter',k:'quartos',label:'Quartos',def:2},{t:'counter',k:'suites',label:'Suítes',def:1},{t:'counter',k:'vagas',label:'Vagas',def:1},
+        {t:'slider',k:'area_m2',label:'Área privativa',min:30,max:600,step:5,def:90,unit:'m²'},
+        {t:'sel',k:'andar',label:'Andar',opts:['Baixo','Intermediário','Alto','Cobertura','Indiferente']},
+        {t:'sel',k:'elevador',label:'Elevador',opts:['Sim','Não','Indiferente']} ] },
+    cobertura: { label:'Cobertura', icon:'🌆', qualidade:QUAL_RES, diferenciais:DIF_APTO,
+      campos:[ {t:'counter',k:'quartos',label:'Quartos',def:3},{t:'counter',k:'suites',label:'Suítes',def:2},{t:'counter',k:'vagas',label:'Vagas',def:2},
+        {t:'slider',k:'area_m2',label:'Área privativa',min:80,max:900,step:10,def:200,unit:'m²'},
+        {t:'slider',k:'area_terraco',label:'Terraço / área externa',min:10,max:400,step:10,def:60,unit:'m²'},
+        {t:'sel',k:'elevador',label:'Elevador',opts:['Sim','Indiferente']} ] } } },
+  rural: { label:'Rural', subtipos: {
+    chacara: { label:'Chácara', icon:'🌳', qualidade:QUAL_RURAL, diferenciais:DIF_CHACARA,
+      campos:[ {t:'slider',k:'area_m2',label:'Área total',min:500,max:50000,step:100,def:2000,unit:'m²'},
+        {t:'sel',k:'casa_sede',label:'Casa-sede',opts:['Com casa-sede','Sem casa','Indiferente']},
+        {t:'counter',k:'quartos',label:'Quartos (sede)',def:2},
+        {t:'multi',k:'agua',label:'Água disponível',opts:['Poço','Nascente','Rede','Açude']} ] },
+    sitio: { label:'Sítio', icon:'🌾', qualidade:QUAL_RURAL, diferenciais:DIF_SITIO,
+      campos:[ {t:'slider',k:'area_ha',label:'Área',min:1,max:200,step:1,def:5,unit:'ha'},
+        {t:'sel',k:'aptidao',label:'Aptidão',opts:['Lazer','Produção','Mista']},
+        {t:'sel',k:'casa_sede',label:'Casa-sede',opts:['Com sede','Sem sede','Indiferente']},
+        {t:'multi',k:'agua',label:'Água disponível',opts:['Poço','Nascente','Açude','Rio']} ] },
+    fazenda: { label:'Fazenda', icon:'🚜', qualidade:QUAL_RURAL, diferenciais:DIF_FAZENDA,
+      campos:[ {t:'slider',k:'area_ha',label:'Área',min:10,max:10000,step:10,def:100,unit:'ha'},
+        {t:'sel',k:'aptidao',label:'Aptidão',opts:['Pecuária','Agricultura','Mista']},
+        {t:'sel',k:'formacao',label:'Formação',opts:['Bruta','Parcialmente formada','Formada']},
+        {t:'sel',k:'casa_sede',label:'Casa-sede',opts:['Sim','Não','Indiferente']},
+        {t:'multi',k:'documentacao',label:'Documentação',opts:['CAR','Georreferenciada','Matrícula regular']} ] },
+    pesqueiro: { label:'Pesqueiro', icon:'🎣', qualidade:QUAL_RURAL, diferenciais:DIF_PESQUEIRO,
+      campos:[ {t:'slider',k:'area_m2',label:'Área total',min:1000,max:100000,step:500,def:5000,unit:'m²'},
+        {t:'slider',k:'frente_agua',label:'Frente para água',min:10,max:2000,step:10,def:100,unit:'m'},
+        {t:'sel',k:'tipo_agua',label:'Tipo de água',opts:['Rio','Lago','Açude','Represa']},
+        {t:'sel',k:'casa_sede',label:'Estrutura',opts:['Sede de apoio','Sem estrutura','Indiferente']},
+        {t:'counter',k:'quartos',label:'Quartos (hóspedes)',def:2} ] } } },
+  comercial: { label:'Comercial', subtipos: {
+    sala_comercial: { label:'Sala / Ponto comercial', icon:'🏬', qualidade:QUAL_COM, diferenciais:DIF_COMERCIAL,
+      campos:[ {t:'slider',k:'area_m2',label:'Área',min:20,max:2000,step:10,def:60,unit:'m²'},
+        {t:'counter',k:'vagas',label:'Vagas',def:1},
+        {t:'sel',k:'pavimento',label:'Pavimento',opts:['Térreo','Andar','Múltiplos']},
+        {t:'sel',k:'mezanino',label:'Mezanino',opts:['Sim','Não','Indiferente']},
+        {t:'counter',k:'banheiros',label:'Banheiros',def:1} ] },
+    predio_loja: { label:'Prédio / Loja', icon:'🏪', qualidade:QUAL_COM, diferenciais:DIF_COMERCIAL,
+      campos:[ {t:'slider',k:'area_m2',label:'Área',min:50,max:5000,step:20,def:200,unit:'m²'},
+        {t:'counter',k:'vagas',label:'Vagas',def:2},
+        {t:'sel',k:'pavimento',label:'Estrutura',opts:['Térreo','Sobreloja','Múltiplos andares']},
+        {t:'counter',k:'banheiros',label:'Banheiros',def:2} ] },
+    galpao: { label:'Galpão / Barracão', icon:'🏭', qualidade:QUAL_COM, diferenciais:DIF_GALPAO,
+      campos:[ {t:'slider',k:'area_m2',label:'Área',min:100,max:10000,step:50,def:500,unit:'m²'},
+        {t:'slider',k:'pe_direito',label:'Pé-direito',min:3,max:15,step:0.5,def:6,unit:'m'},
+        {t:'sel',k:'docas',label:'Docas',opts:['Sim','Não','Indiferente']},
+        {t:'sel',k:'energia',label:'Energia',opts:['Trifásica','Monofásica','Indiferente']},
+        {t:'sel',k:'escritorios',label:'Escritórios',opts:['Sim','Não','Indiferente']} ] } } },
+  terreno: { label:'Terreno', subtipos: {
+    lote_cond: { label:'Lote em condomínio', icon:'📐', qualidade:QUAL_TER, diferenciais:DIF_TERRENO,
+      campos:[ {t:'slider',k:'area_m2',label:'Área',min:100,max:5000,step:10,def:360,unit:'m²'},
+        {t:'slider',k:'frente',label:'Frente',min:5,max:100,step:1,def:12,unit:'m'},
+        {t:'sel',k:'topografia',label:'Topografia',opts:['Plano','Aclive','Declive','Indiferente']},
+        {t:'sel',k:'posicao',label:'Posição',opts:['Meio de quadra','Esquina','Indiferente']} ] },
+    terreno_urbano: { label:'Terreno urbano', icon:'🟫', qualidade:QUAL_TER, diferenciais:DIF_TERRENO,
+      campos:[ {t:'slider',k:'area_m2',label:'Área',min:100,max:5000,step:10,def:360,unit:'m²'},
+        {t:'slider',k:'frente',label:'Frente',min:5,max:100,step:1,def:12,unit:'m'},
+        {t:'sel',k:'topografia',label:'Topografia',opts:['Plano','Aclive','Declive','Indiferente']},
+        {t:'sel',k:'posicao',label:'Posição',opts:['Meio de quadra','Esquina','Indiferente']},
+        {t:'sel',k:'murado',label:'Murado',opts:['Sim','Não','Indiferente']} ] },
+    area_rural: { label:'Área / Gleba rural', icon:'🗺️', qualidade:QUAL_TER, diferenciais:DIF_AREA_RURAL,
+      campos:[ {t:'slider',k:'area_ha',label:'Área',min:1,max:5000,step:1,def:20,unit:'ha'},
+        {t:'sel',k:'topografia',label:'Topografia',opts:['Plano','Ondulado','Acidentado']},
+        {t:'sel',k:'agua',label:'Água',opts:['Abundante','Boa','Limitada']},
+        {t:'sel',k:'acesso',label:'Acesso',opts:['Asfalto','Estrada boa','Estrada simples']} ] } } }
+};
+
+// ---- Renderizadores (reaproveitam as classes visuais existentes) ----
+function renderCampos(campos) {
+  const el = document.getElementById('tipo-campos');
+  if (!el) return;
+  let h = '';
+  (campos || []).forEach(c => {
+    if (c.t === 'counter') {
+      counters[c.k] = c.def;
+      h += '<div class="counter-row"><span class="counter-label">' + c.label + '</span><div class="counter-ctrl"><button class="counter-btn" onclick="counter(\'' + c.k + '\',-1)">−</button><span class="counter-val" id="val-' + c.k + '">' + c.def + '</span><button class="counter-btn" onclick="counter(\'' + c.k + '\',1)">+</button></div></div>';
+    } else if (c.t === 'slider') {
+      h += '<span class="section-label">' + c.label + '</span><div class="slider-wrap"><div class="slider-val-display"><span id="sdisp-' + c.k + '">' + c.def + '</span><small> ' + c.unit + '</small></div><div class="slider-labels"><span>' + c.min + ' ' + c.unit + '</span><span>' + c.max + ' ' + c.unit + '</span></div><input type="range" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + c.def + '" id="sld-' + c.k + '" oninput="document.getElementById(\'sdisp-' + c.k + '\').textContent=this.value"></div>';
+    } else if (c.t === 'sel') {
+      h += '<span class="section-label">' + c.label + '</span><div class="option-grid">' + c.opts.map(o => '<div class="opt-card" onclick="selUnico(this,\'campo_' + c.k + '\')" data-group="campo_' + c.k + '"><span class="opt-label">' + o + '</span></div>').join('') + '</div>';
+    } else if (c.t === 'multi') {
+      h += '<span class="section-label">' + c.label + ' <small style="font-weight:300;letter-spacing:0;text-transform:none;color:var(--gold-dark)">— quantos quiser</small></span><div class="option-grid">' + c.opts.map(o => '<div class="opt-card" onclick="toggleOpt(this)" data-group="campo_' + c.k + '"><span class="opt-label">' + o + '</span></div>').join('') + '</div>';
+    }
+  });
+  el.innerHTML = h;
+}
+function getCamposValores(campos) {
+  const out = [];
+  (campos || []).forEach(c => {
+    let v = '';
+    if (c.t === 'counter') v = String(counters[c.k] != null ? counters[c.k] : c.def);
+    else if (c.t === 'slider') { const s = document.getElementById('sld-' + c.k); v = (s ? s.value : c.def) + (c.unit ? ' ' + c.unit : ''); }
+    else if (c.t === 'sel') { const sel = document.querySelector('[data-group="campo_' + c.k + '"].sel'); v = sel ? sel.querySelector('.opt-label').textContent.trim() : ''; }
+    else if (c.t === 'multi') { v = Array.from(document.querySelectorAll('[data-group="campo_' + c.k + '"].sel')).map(e => e.querySelector('.opt-label').textContent.trim()).join(' · '); }
+    out.push({ k: c.k, label: c.label, valor: v });
+  });
+  return out;
+}
+function renderQualidade(q) {
+  q = q || QUAL_RES;
+  const pe = document.getElementById('qual-padrao'), ee = document.getElementById('qual-estado');
+  if (pe) pe.innerHTML = q.padrao.map(o => '<div class="opt-card" onclick="toggleOpt(this)" data-group="padrao"><span class="opt-label">' + o + '</span></div>').join('');
+  if (ee) ee.innerHTML = q.estado.map(o => '<div class="opt-card" onclick="toggleOpt(this)" data-group="estado"><span class="opt-label">' + o + '</span></div>').join('');
+}
+function renderDiferenciais(arr) {
+  arr = (arr && arr.length) ? arr : DIF_CASA;
+  const g = document.getElementById('diff-grid-dyn');
+  if (g) g.innerHTML = arr.map(d => '<div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">' + d + '</span></div>').join('');
+}
+// Formata as características próprias do tipo (ex.: "Quartos: 3 · Área: 200 m² · Aptidão: Pecuária")
+function fmtCampos(l, sep) {
+  sep = sep || ' · ';
+  if (!l || !Array.isArray(l.tipologia_campos) || !l.tipologia_campos.length) return '';
+  return l.tipologia_campos
+    .filter(c => c.valor != null && String(c.valor).trim() !== '')
+    .map(c => c.label + ': ' + c.valor)
+    .join(sep);
+}
+
+// ---- Seleção de família / subtipo ----
+function selFamilia(el, fam) {
+  document.querySelectorAll('[data-group="familia"]').forEach(e => e.classList.remove('sel'));
+  el.classList.add('sel');
+  familiaSel = fam; subtipoSel = ''; camposAtuais = [];
+  const tc = document.getElementById('tipo-campos'); if (tc) tc.innerHTML = '';
+  const ow = document.getElementById('obs-tipologia-wrap'); if (ow) ow.style.display = 'none';
+  const grid = document.getElementById('subtipo-grid'), wrap = document.getElementById('subtipo-wrap');
+  if (fam === 'descoberta') { iniciarDescoberta(); return; }
+  const subs = CATALOGO[fam] ? CATALOGO[fam].subtipos : {};
+  if (grid) grid.innerHTML = Object.keys(subs).map(k => '<div class="opt-card" onclick="selSubtipo(this,\'' + fam + '\',\'' + k + '\')" data-group="subtipo"><span class="opt-icon">' + subs[k].icon + '</span><span class="opt-label">' + subs[k].label + '</span></div>').join('');
+  if (wrap) wrap.style.display = '';
+}
+function selSubtipo(el, fam, sub) {
+  document.querySelectorAll('[data-group="subtipo"]').forEach(e => e.classList.remove('sel'));
+  el.classList.add('sel');
+  familiaSel = fam; subtipoSel = sub;
+  const def = CATALOGO[fam].subtipos[sub];
+  camposAtuais = def.campos || [];
+  renderCampos(camposAtuais);
+  renderQualidade(def.qualidade);
+  renderDiferenciais(def.diferenciais);
+  const ow = document.getElementById('obs-tipologia-wrap'); if (ow) ow.style.display = '';
+}
+// Fase 3 (placeholder): por ora mostra todos os subtipos para escolha
+function iniciarDescoberta() {
+  const grid = document.getElementById('subtipo-grid'), wrap = document.getElementById('subtipo-wrap');
+  let h = '';
+  Object.keys(CATALOGO).forEach(fam => { const subs = CATALOGO[fam].subtipos; Object.keys(subs).forEach(k => { h += '<div class="opt-card" onclick="selSubtipo(this,\'' + fam + '\',\'' + k + '\')" data-group="subtipo"><span class="opt-icon">' + subs[k].icon + '</span><span class="opt-label">' + subs[k].label + '</span></div>'; }); });
+  if (grid) grid.innerHTML = h;
+  if (wrap) wrap.style.display = '';
+}
+
 function selInteresse(el) {
   document.querySelectorAll('.interest-opt').forEach(e => e.classList.remove('sel'));
   el.classList.add('sel');
@@ -1587,8 +1719,9 @@ function iniciarApp() {
     nome, wpp, email: mail, interesse: interesseSel,
     loc_cidade: 'Dourados', loc_distrito: '', loc_estado: 'MS',
     loc_bairros: [], loc_proximidade: [], obs_loc: '',
-    tipologia: '', quartos: 2, suites: 1, vagas: 2, area_m2: 200,
-    padrao: '', estado: '', prazo_compra: '',
+    familia: '', subtipo: '', tipologia: '', tipologia_campos: [], obs_tipologia: '',
+    quartos: '', suites: '', vagas: '', area_m2: '',
+    padrao: '', estado: '', prazo_compra: '', obs_qualidade: '',
     diferenciais: [], obs_diferenciais: '',
     preco_min: 500000, preco_max: 1500000,
     pgto: [], obs_permuta: '', prazo_negocio: '', obs_finais: ''
@@ -1597,6 +1730,8 @@ function iniciarApp() {
   document.getElementById('client-name-display').textContent = nome.split(' ')[0];
   document.getElementById('success-name').textContent = nome.split(' ')[0];
   showScreen('app');
+  // Inicializa localidades (Dourados x outras) e defaults de Qualidade/Diferenciais
+  try { atualizarLocalidades(); renderQualidade(QUAL_RES); renderDiferenciais(DIF_CASA); } catch(e){ console.warn('init form:', e); }
   goToStep(0);
 }
 
@@ -1648,15 +1783,24 @@ function coletarPasso(n) {
     lead.obs_loc = document.getElementById('obs-loc').value.trim();
   }
   if (n === 1) {
-    const t = document.querySelector('[data-group="tipo"].sel');
-    lead.tipologia = t ? t.querySelector('.opt-label').textContent.trim() : '';
-    lead.quartos = counters.quartos; lead.suites = counters.suites; lead.vagas = counters.vagas;
-    lead.area_m2 = parseInt(document.getElementById('area-slider').value);
+    lead.familia = familiaSel || '';
+    lead.subtipo = subtipoSel || '';
+    lead.tipologia = (subtipoSel && CATALOGO[familiaSel] && CATALOGO[familiaSel].subtipos[subtipoSel])
+      ? CATALOGO[familiaSel].subtipos[subtipoSel].label : '';
+    lead.tipologia_campos = getCamposValores(camposAtuais);
+    const _m = {}; lead.tipologia_campos.forEach(c => { _m[c.k] = c.valor; });
+    lead.quartos = (_m.quartos !== undefined) ? _m.quartos : '';
+    lead.suites  = (_m.suites  !== undefined) ? _m.suites  : '';
+    lead.vagas   = (_m.vagas   !== undefined) ? _m.vagas   : '';
+    const _area  = _m.area_m2 || _m.area_terreno || _m.area_ha || '';
+    lead.area_m2 = _area ? String(_area).replace(/[^\d.,]/g, '') : '';
+    lead.obs_tipologia = (document.getElementById('obs-tipologia') ? document.getElementById('obs-tipologia').value : '').trim();
   }
   if (n === 2) {
     lead.padrao      = Array.from(document.querySelectorAll('[data-group="padrao"].sel')).map(e=>e.querySelector('.opt-label').textContent.trim());
     lead.estado      = Array.from(document.querySelectorAll('[data-group="estado"].sel')).map(e=>e.querySelector('.opt-label').textContent.trim());
     lead.prazo_compra = Array.from(document.querySelectorAll('[data-group="prazo"].sel')).map(e=>e.querySelector('.opt-label').textContent.trim());
+    lead.obs_qualidade = (document.getElementById('obs-qualidade') ? document.getElementById('obs-qualidade').value : '').trim();
   }
   if (n === 3) {
     lead.diferenciais = Array.from(document.querySelectorAll('.diff-item.sel')).map(e => e.querySelector('.diff-label').textContent.trim());
@@ -2053,7 +2197,12 @@ async function renderMapaBairros(bairros, cidade, estado, distrito) {
         leafletImage(map, (err, canvas) => {
           try { host.remove(); } catch(_){}
           if (err) { console.warn('[mapa] leaflet-image falhou:', err); resolve(null); return; }
-          try { resolve(canvas.toDataURL('image/png')); }
+          try {
+            // Clareia levemente o satélite para melhor leitura no Dossiê
+            const ctx = canvas.getContext('2d');
+            if (ctx) { ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            resolve(canvas.toDataURL('image/png'));
+          }
           catch (e) { console.warn('[mapa] toDataURL falhou:', e); resolve(null); }
         });
       };
@@ -2359,7 +2508,7 @@ function gerarDossieHTML(l, mapaDataUrl) {
 
     <div class="grid-6">
       <div class="cell"><span class="n">1</span><div class="k">Localização</div><div class="v">${_esc(bairroPrincipal)}${bairrosTail}</div><div class="vs">${_esc(prox.slice(0,3).join(' · ') || 'Sem preferência')}</div></div>
-      <div class="cell"><span class="n">2</span><div class="k">Tipologia</div><div class="v">${_esc(tipologia)}</div><div class="vs">${_esc(quartos)}Q · ${_esc(suites)} suítes · ${_esc(vagas)} vagas${l.area_m2?` · ${l.area_m2} m²`:''}</div></div>
+      <div class="cell"><span class="n">2</span><div class="k">Tipologia</div><div class="v">${_esc(tipologia)}</div><div class="vs">${_esc(fmtCampos(l) || (l.obs_tipologia||'—'))}</div></div>
       <div class="cell"><span class="n">3</span><div class="k">Qualidade</div><div class="v">${_esc(padrao)}</div><div class="vs">${_esc(prazoCompra.join(' · ') || 'Prazo não definido')}</div></div>
       <div class="cell"><span class="n">4</span><div class="k">Diferenciais</div><div class="v">${diferenciais.length} ${diferenciais.length===1?'item':'itens'}<br/>inegociáve${diferenciais.length===1?'l':'is'}</div><div class="vs">${_esc(diferenciais.slice(0,4).join(' · ') || '—')}</div></div>
       <div class="cell"><span class="n">5</span><div class="k">Faixa de Preço</div><div class="v">${precoMin}<br/>— ${precoMax}</div><div class="vs">Investimento residencial</div></div>
@@ -2736,7 +2885,7 @@ function gerarEmailHTML(l) {
         <h2 style="margin:0 0 18px;font-family:Georgia,serif;font-weight:400;font-size:22px;color:#22201C">O perfil <em style="color:#9A6A52;font-weight:300">em uma vista.</em></h2>
 
         ${ponto(1, 'Localização',     _esc((l.loc_cidade||'Dourados') + '-' + (l.loc_estado||'MS') + (bairros.length ? ' · ' + bairros.join(' · ') : '')),  _esc((l.loc_distrito ? 'Distrito: ' + l.loc_distrito + ' · ' : '') + (prox.join(' · ') || 'Proximidades não informadas')))}
-        ${ponto(2, 'Tipologia',       _esc(l.tipologia||'—'),                                       `${_esc(String(l.quartos||'—'))}Q · ${_esc(String(l.suites||'0'))} suítes · ${_esc(String(l.vagas||'—'))} vagas${l.area_m2?` · ${_esc(String(l.area_m2))} m²`:''} · ${_esc(estado)}`)}
+        ${ponto(2, 'Tipologia',       _esc(((l.familia && CATALOGO[l.familia]) ? CATALOGO[l.familia].label + ' · ' : '') + (l.tipologia||'—')),  _esc([fmtCampos(l), (l.obs_tipologia||'')].filter(Boolean).join(' · ') || '—'))}
         ${ponto(3, 'Qualidade',       _esc(padrao),                                                  `Prazo: ${_esc(prazoC)}`)}
         ${ponto(4, 'Diferenciais',    dif.length ? _esc(dif.join(' · ')) : '<span style="color:#8C8275">Nenhum item marcado</span>', l.obs_diferenciais ? _esc(l.obs_diferenciais) : '')}
         ${ponto(5, 'Faixa de Preço',  `${_esc(fmtBRL(l.preco_min))} — ${_esc(fmtBRL(l.preco_max))}`, sweetSpot(l.preco_min, l.preco_max) ? `Sweet-spot: ${sweetSpot(l.preco_min, l.preco_max)}` : '')}
