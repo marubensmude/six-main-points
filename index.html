@@ -73,7 +73,7 @@
   // Allowlist e sem cota de terceiros). Dispara automaticamente quando
   // o EmailJS falha, garantindo que nenhum lead se perca.
   // Cole aqui a URL /exec gerada ao publicar o plano-b-apps-script.gs:
-  const APPS_SCRIPT_URL = '[PREENCHER]';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5dj3LlXIjBv2yQza3LTt7gEfJq032SCP0I0MPbWFMCm7MrKD8xqglwufWTEUoXPA/exec';
   (function(){ emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); })();
 
   // ── TRACKING / ATRIBUIÇÃO ────────────────────────────────────────────────────
@@ -1756,54 +1756,15 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
   //    fallback caso a template ainda use {{message}}.
   const emailHtml = gerarEmailHTML(lead);
 
-  // ── Envia via EmailJS (não bloqueia a tela de sucesso) ─────
-  if (EMAILJS_PUBLIC_KEY !== 'SEU_PUBLIC_KEY_AQUI') {
-    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_email:    EMAIL_DESTINO,
-      subject:     'Dossiê Six Main Points — ' + (lead.nome||'Novo Cliente'),
-      message:     corpo,        // fallback texto-puro
-      message_html: emailHtml,    // versão estilizada (recomendado: {{{message_html}}})
-      lead_nome:   lead.nome,
-      lead_wpp:    lead.wpp,
-      lead_email:  lead.email,
-      lead_interesse: lead.interesse,
-      quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao',
-      // Origem (atribuição de paid media) — fica visível no e-mail
-      lead_utm_source:   (lead.attribution && lead.attribution.utm_source)   || '—',
-      lead_utm_medium:   (lead.attribution && lead.attribution.utm_medium)   || '—',
-      lead_utm_campaign: (lead.attribution && lead.attribution.utm_campaign) || '—',
-      lead_utm_content:  (lead.attribution && lead.attribution.utm_content)  || '—',
-      lead_attribution_json: JSON.stringify(lead.attribution || {}, null, 2)
-    }).then((resp) => {
-      console.info('[EmailJS] notificação enviada.', resp && resp.status, resp && resp.text);
-      if (SMP_DEBUG) {
-        alert('✅ EmailJS OK\n\nStatus: ' + (resp && resp.status) +
-              '\nResposta: ' + (resp && resp.text) +
-              '\nDestino (to_email): ' + EMAIL_DESTINO +
-              '\n\nSe o e-mail mesmo assim não chegou, o problema é de ENTREGA\n' +
-              '(spam/filtro do destinatário ou o campo "To Email" do template\n' +
-              'não está usando {{to_email}}).');
-      }
-    }).catch(err => {
-      // Falha silenciosa em produção: o lead JÁ foi salvo (Supabase + navegador).
-      // O e-mail é apenas uma notificação interna para a Mude, então o
-      // cliente NUNCA deve ver erro de envio. Detalhe fica só no console.
-      console.warn('[EmailJS] falha ao enviar notificação interna:', JSON.stringify(err));
-      // PLANO B: EmailJS falhou (ex.: Allowlist, cota) → notifica via Apps Script.
-      notificarPlanoB(lead);
-      if (SMP_DEBUG) {
-        alert('❌ EmailJS FALHOU\n\nStatus: ' + (err && err.status) +
-              '\nErro: ' + (err && (err.text || err.message || JSON.stringify(err))) +
-              '\n\nLeitura rápida:\n' +
-              '• 422 → variável faltando no template (ex.: "To Email" sem {{to_email}})\n' +
-              '• 400 → service/template/public key incorretos\n' +
-              '• 403 → API bloqueada ou cota do plano esgotada\n' +
-              '• 426/2xx mas sem e-mail → serviço de envio desconectado');
-      }
-    });
+  // ── Notificação interna para a Mude (não bloqueia a tela de sucesso) ──
+  // Canal PRINCIPAL: Google Apps Script — envia o e-mail COM o Dossiê em
+  // PDF anexado. Se o Apps Script ainda não estiver configurado
+  // (APPS_SCRIPT_URL = [PREENCHER]), usa o EmailJS (sem anexo). O EmailJS
+  // também funciona como backup automático caso o Apps Script falhe.
+  if (APPS_SCRIPT_URL && APPS_SCRIPT_URL !== '[PREENCHER]') {
+    notificarPlanoB(lead, corpo, emailHtml);   // e-mail com PDF anexado
   } else {
-    // EmailJS desativado → usa direto o Plano B.
-    notificarPlanoB(lead);
+    enviarEmailJS(lead, corpo, emailHtml);      // e-mail sem anexo (fallback)
   }
 
   // Mensagem da tela de sucesso muda conforme o cliente pediu (ou não)
@@ -1829,16 +1790,20 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
 }
 
 // ════════════════════════════════════════════════════════════════════
-//  PLANO B — Notificação via Google Apps Script (independente do EmailJS)
-//  Dispara quando o EmailJS falha. Usa fetch no-cors + text/plain para
-//  evitar bloqueio de CORS (fire-and-forget; o e-mail é enviado mesmo
-//  sem podermos ler a resposta).
+//  NOTIFICAÇÃO VIA GOOGLE APPS SCRIPT (canal principal — com PDF anexado)
+//  O Apps Script recebe o HTML do Dossiê, converte em PDF e anexa ao
+//  e-mail enviado para a Mude. Usa fetch no-cors + text/plain para evitar
+//  bloqueio de CORS (fire-and-forget). Se a rede falhar, cai no EmailJS.
 // ════════════════════════════════════════════════════════════════════
-function notificarPlanoB(lead) {
+function notificarPlanoB(lead, corpo, emailHtml) {
   if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === '[PREENCHER]') {
-    console.warn('[PlanoB] APPS_SCRIPT_URL não configurada — pulando.');
-    if (SMP_DEBUG) alert('⚠️ Plano B não configurado.\nCole a URL /exec do Apps Script em APPS_SCRIPT_URL no index.html.');
+    console.warn('[PlanoB] APPS_SCRIPT_URL não configurada — usando EmailJS.');
+    enviarEmailJS(lead, corpo, emailHtml);
     return;
+  }
+  // Reconstrói o HTML do Dossiê se o chamador não passou (ex.: reenvio da fila)
+  if (!emailHtml && typeof gerarEmailHTML === 'function') {
+    try { emailHtml = gerarEmailHTML(lead); } catch (e) { emailHtml = ''; }
   }
   var a = lead.attribution || {};
   var payload = {
@@ -1851,7 +1816,8 @@ function notificarPlanoB(lead) {
     utm_medium:     a.utm_medium   || '—',
     utm_campaign:   a.utm_campaign || '—',
     utm_content:    a.utm_content  || '—',
-    quando:         new Date().toLocaleString('pt-BR')
+    quando:         new Date().toLocaleString('pt-BR'),
+    pdf_html:       emailHtml || ''   // HTML que o Apps Script converte em PDF
   };
   try {
     fetch(APPS_SCRIPT_URL, {
@@ -1860,18 +1826,66 @@ function notificarPlanoB(lead) {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body:    JSON.stringify(payload)
     }).then(() => {
-      console.info('[PlanoB] notificação disparada (Apps Script).');
+      console.info('[PlanoB] notificação disparada (Apps Script, com PDF).');
       desenfileirarPendencia(lead);
-      if (SMP_DEBUG) alert('✅ Plano B (Apps Script) disparado.\nConfira a caixa de ' + EMAIL_DESTINO + ' (inclusive spam).');
+      if (SMP_DEBUG) alert('✅ Apps Script disparado (e-mail com PDF anexado).\nConfira a caixa de ' + EMAIL_DESTINO + ' (inclusive spam).');
     }).catch(err => {
+      // Falha de REDE → guarda na fila e aciona o backup EmailJS.
       console.warn('[PlanoB] falha de rede:', err);
       enfileirarPendencia(lead);
-      if (SMP_DEBUG) alert('❌ Plano B (Apps Script) falhou no envio: ' + err + '\nLead guardado na fila local para reenvio.');
+      enviarEmailJS(lead, corpo, emailHtml);
+      if (SMP_DEBUG) alert('❌ Apps Script falhou no envio: ' + err + '\nAcionando backup EmailJS e guardando na fila local.');
     });
   } catch (err) {
     console.warn('[PlanoB] erro:', err);
     enfileirarPendencia(lead);
+    enviarEmailJS(lead, corpo, emailHtml);
   }
+}
+
+// ── BACKUP — Envio via EmailJS (sem anexo) ───────────────────────────
+// Usado como canal principal enquanto o Apps Script não estiver
+// configurado, e como backup automático se o Apps Script falhar.
+function enviarEmailJS(lead, corpo, emailHtml) {
+  if (EMAILJS_PUBLIC_KEY === 'SEU_PUBLIC_KEY_AQUI') {
+    console.warn('[EmailJS] desativado — nenhuma notificação enviada.');
+    return;
+  }
+  var a = lead.attribution || {};
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    to_email:    EMAIL_DESTINO,
+    subject:     'Dossiê Six Main Points — ' + (lead.nome || 'Novo Cliente'),
+    message:     corpo || '',
+    message_html: emailHtml || '',
+    lead_nome:   lead.nome,
+    lead_wpp:    lead.wpp,
+    lead_email:  lead.email,
+    lead_interesse: lead.interesse,
+    quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao',
+    lead_utm_source:   a.utm_source   || '—',
+    lead_utm_medium:   a.utm_medium   || '—',
+    lead_utm_campaign: a.utm_campaign || '—',
+    lead_utm_content:  a.utm_content  || '—',
+    lead_attribution_json: JSON.stringify(lead.attribution || {}, null, 2)
+  }).then(function (resp) {
+    console.info('[EmailJS] notificação enviada.', resp && resp.status, resp && resp.text);
+    if (SMP_DEBUG) {
+      alert('✅ EmailJS OK\n\nStatus: ' + (resp && resp.status) +
+            '\nResposta: ' + (resp && resp.text) +
+            '\nDestino (to_email): ' + EMAIL_DESTINO +
+            '\n\n(Observação: o EmailJS envia SEM anexo. O PDF vem pelo Apps Script.)');
+    }
+  }).catch(function (err) {
+    console.warn('[EmailJS] falha ao enviar notificação interna:', JSON.stringify(err));
+    if (SMP_DEBUG) {
+      alert('❌ EmailJS FALHOU\n\nStatus: ' + (err && err.status) +
+            '\nErro: ' + (err && (err.text || err.message || JSON.stringify(err))) +
+            '\n\nLeitura rápida:\n' +
+            '• 422 → variável faltando no template (ex.: "To Email" sem {{to_email}})\n' +
+            '• 400 → service/template/public key incorretos\n' +
+            '• 403 → API bloqueada ou cota do plano esgotada');
+    }
+  });
 }
 
 // Fila local de segurança (rede final): se até o Plano B falhar, o lead

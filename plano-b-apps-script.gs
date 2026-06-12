@@ -38,12 +38,17 @@ function doPost(e) {
       lead = JSON.parse(e.postData.contents);
     }
 
+    // Gera o Dossiê em PDF (a partir do HTML enviado pelo site, ou de um
+    // resumo do lead caso o HTML não venha) e anexa ao e-mail.
+    var pdf = gerarPdf(lead);
+
     MailApp.sendEmail({
-      to:       DESTINO,
-      replyTo:  lead.email || DESTINO,
-      subject:  ASSUNTO + ' — ' + (lead.nome || 'Novo Cliente'),
-      htmlBody: montarHtml(lead),
-      body:     montarTexto(lead)
+      to:          DESTINO,
+      replyTo:     lead.email || DESTINO,
+      subject:     ASSUNTO + ' — ' + (lead.nome || 'Novo Cliente'),
+      htmlBody:    montarHtml(lead),
+      body:        montarTexto(lead),
+      attachments: pdf ? [pdf] : []
     });
 
     return ContentService
@@ -55,6 +60,28 @@ function doPost(e) {
     return ContentService
       .createTextOutput(JSON.stringify({ ok: false, error: String(err) }))
       .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ── Gera o PDF do lead ──────────────────────────────────────────────────────
+// Converte o HTML do Dossiê (campo pdf_html, vindo do site) em PDF. Se o HTML
+// não vier, monta um PDF de resumo com os dados do lead.
+function gerarPdf(lead) {
+  try {
+    var html = (lead.pdf_html && lead.pdf_html.length > 20)
+      ? lead.pdf_html
+      : '<div style="font-family:Arial,sans-serif;padding:24px;">' + montarHtml(lead) + '</div>';
+
+    // Garante uma estrutura HTML mínima válida para a conversão
+    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>' + html + '</body></html>';
+
+    var nomeArq = 'Dossie Six Main Points - ' + (lead.nome || 'Lead') + '.pdf';
+    var blob = Utilities.newBlob(doc, 'text/html', 'dossie.html').getAs('application/pdf');
+    blob.setName(nomeArq);
+    return blob;
+  } catch (err) {
+    // Se a conversão falhar por qualquer motivo, segue sem anexo (não perde o lead)
+    return null;
   }
 }
 
