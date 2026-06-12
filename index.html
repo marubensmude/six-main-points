@@ -1130,7 +1130,24 @@
         <p class="step-desc">Selecione os bairros ou regiões de Dourados que mais te interessam.</p>
       </div>
 
-      <span class="section-label">Bairros e regiões</span>
+      <span class="section-label">Cidade onde deseja o imóvel</span>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+        <div class="field" style="margin-bottom:10px;">
+          <label>Cidade</label>
+          <input type="text" id="loc-cidade" value="Dourados" placeholder="Ex: Dourados">
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Estado (UF)</label>
+          <input type="text" id="loc-estado" value="MS" maxlength="2" placeholder="MS" style="text-transform:uppercase;">
+        </div>
+      </div>
+      <div class="field">
+        <label>Distrito / Localidade <small style="font-weight:300;letter-spacing:0;text-transform:none;color:var(--gold-dark)">— opcional, útil para área rural</small></label>
+        <input type="text" id="loc-distrito" placeholder="Ex: Vila Vargas, Indápolis, Itahum...">
+      </div>
+      <p class="step-desc" style="margin:2px 0 16px;font-size:12px;">Os bairros abaixo se aplicam a <strong>Dourados</strong>. Para outra cidade, indique acima — vamos considerar a cidade e o distrito informados.</p>
+
+      <span class="section-label">Bairros e regiões <small style="font-weight:300;letter-spacing:0;text-transform:none;color:var(--gold-dark)">— se for em Dourados</small></span>
       <div class="bairro-grid" id="bairros-grid">
         <div class="bairro-chip" onclick="toggleChip(this)">Centro</div>
         <div class="bairro-chip" onclick="toggleChip(this)">Região Norte — Condomínios</div>
@@ -1568,6 +1585,7 @@ function iniciarApp() {
     id: Date.now(),
     data: new Date().toLocaleString('pt-BR'),
     nome, wpp, email: mail, interesse: interesseSel,
+    loc_cidade: 'Dourados', loc_distrito: '', loc_estado: 'MS',
     loc_bairros: [], loc_proximidade: [], obs_loc: '',
     tipologia: '', quartos: 2, suites: 1, vagas: 2, area_m2: 200,
     padrao: '', estado: '', prazo_compra: '',
@@ -1622,6 +1640,9 @@ function prevStep() {
 
 function coletarPasso(n) {
   if (n === 0) {
+    lead.loc_cidade = (document.getElementById('loc-cidade')?.value || 'Dourados').trim() || 'Dourados';
+    lead.loc_estado = (document.getElementById('loc-estado')?.value || 'MS').trim().toUpperCase() || 'MS';
+    lead.loc_distrito = (document.getElementById('loc-distrito')?.value || '').trim();
     lead.loc_bairros = Array.from(document.querySelectorAll('#bairros-grid .sel')).map(e => e.textContent.trim());
     lead.loc_proximidade = Array.from(document.querySelectorAll('[data-group="prox"].sel')).map(e => e.querySelector('.opt-label').textContent.trim());
     lead.obs_loc = document.getElementById('obs-loc').value.trim();
@@ -1948,15 +1969,40 @@ const BAIRROS_COORDS = {
 // Renderiza um mapa real de Dourados com o(s) bairro(s) destacados
 // e devolve dataURL PNG. Se Leaflet falhar, devolve null e o PDF
 // segue sem o mapa (sem quebrar o fluxo).
-async function renderMapaBairros(bairros) {
+// Geocodifica cidade/distrito informados (Nominatim/OSM — gratuito, sem chave).
+// Devolve {lat,lng} ou null se não encontrar.
+async function geocodificarCidade(cidade, estado, distrito) {
+  try {
+    const q = [distrito, cidade, estado, 'Brasil'].filter(Boolean).join(', ');
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=pt-BR&q=' + encodeURIComponent(q);
+    const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const arr = await r.json();
+    if (arr && arr.length) return { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) };
+  } catch (e) { console.warn('[mapa] geocode falhou:', e); }
+  return null;
+}
+
+async function renderMapaBairros(bairros, cidade, estado, distrito) {
   if (typeof L === 'undefined' || typeof leafletImage === 'undefined') {
     console.warn('[mapa] Leaflet/leaflet-image não carregados — pulando.');
     return null;
   }
-  const lista = Array.isArray(bairros) ? bairros : (bairros ? [bairros] : []);
-  const alvos = lista.length
-    ? lista.map(b => BAIRROS_COORDS[b]).filter(Boolean)
-    : [BAIRROS_COORDS['Qualquer região']];
+  const cidadeNorm = (cidade || 'Dourados').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const ehDourados = !cidadeNorm || cidadeNorm === 'dourados';
+
+  let alvos;
+  if (ehDourados) {
+    const lista = Array.isArray(bairros) ? bairros : (bairros ? [bairros] : []);
+    alvos = lista.length
+      ? lista.map(b => BAIRROS_COORDS[b]).filter(Boolean)
+      : [BAIRROS_COORDS['Qualquer região']];
+  } else {
+    // Cidade fora de Dourados → centraliza na cidade/distrito informados
+    const pt = await geocodificarCidade(cidade, estado, distrito);
+    alvos = pt
+      ? [{ lat: pt.lat, lng: pt.lng, r: distrito ? 5000 : 4000, label: cidade }]
+      : [BAIRROS_COORDS['Qualquer região']];
+  }
   if (!alvos.length) return null;
 
   const host = document.createElement('div');
@@ -1970,20 +2016,30 @@ async function renderMapaBairros(bairros) {
         zoomControl:false, attributionControl:true,
         preferCanvas:true, fadeAnimation:false, zoomAnimation:false
       });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
-        attribution:'© OpenStreetMap, © CARTO',
-        crossOrigin:true, subdomains:'abcd', maxZoom:19
+      // ── MAPA HÍBRIDO (satélite + rótulos) — Esri World Imagery, gratuito, sem chave ──
+      // Base: imagem de satélite de alta resolução
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution:'© Esri · Maxar · Earthstar Geographics', crossOrigin:true, maxZoom:19
+      }).addTo(map);
+      // Sobreposição de estradas/rodovias (rótulos de transporte)
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+        attribution:'', crossOrigin:true, maxZoom:19
+      }).addTo(map);
+      // Sobreposição de nomes (cidades, bairros, limites)
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        attribution:'', crossOrigin:true, maxZoom:19
       }).addTo(map);
 
       const grupo = L.featureGroup().addTo(map);
       alvos.forEach(a => {
+        // Marcadores em dourado/branco para contraste sobre o satélite
         L.circle([a.lat, a.lng], {
-          radius:a.r, color:'#9A6A52', weight:2,
-          fillColor:'#B5856A', fillOpacity:0.28
+          radius:a.r, color:'#F2C879', weight:3,
+          fillColor:'#E0A857', fillOpacity:0.20
         }).addTo(grupo);
         L.circleMarker([a.lat, a.lng], {
-          radius:6, color:'#3A3530', weight:1.5,
-          fillColor:'#D9A86C', fillOpacity:1
+          radius:7, color:'#FFFFFF', weight:2.5,
+          fillColor:'#C8902F', fillOpacity:1
         }).addTo(grupo);
       });
 
@@ -2001,7 +2057,7 @@ async function renderMapaBairros(bairros) {
           catch (e) { console.warn('[mapa] toDataURL falhou:', e); resolve(null); }
         });
       };
-      setTimeout(tentaCapturar, 1600);
+      setTimeout(tentaCapturar, 2400);
     } catch (e) {
       console.warn('[mapa] erro:', e);
       try { host.remove(); } catch(_){}
@@ -2335,6 +2391,10 @@ function gerarDossieHTML(l, mapaDataUrl) {
     <div class="two-col">
       <div style="display:flex;flex-direction:column;gap:12px">
         <div class="field accent">
+          <div class="k">Cidade / Estado</div>
+          <div class="v">${_esc(l.loc_cidade || 'Dourados')} — ${_esc(l.loc_estado || 'MS')}${l.loc_distrito ? `<br/><small>Distrito: ${_esc(l.loc_distrito)}</small>` : ''}</div>
+        </div>
+        <div class="field accent">
           <div class="k">Região / Bairro preferido</div>
           <div class="v">${_esc(bairroPrincipal)}${bairros.length>1?`<br/><small>+ ${bairros.length-1} outra${bairros.length>2?'s':''}</small>`:''}</div>
         </div>
@@ -2346,7 +2406,7 @@ function gerarDossieHTML(l, mapaDataUrl) {
       </div>
       <div class="field" style="padding:0;overflow:hidden">
         <div class="map" style="height:200px;margin:0;border:none;border-radius:0">${mapaImg}</div>
-        <div class="small" style="padding:6px 12px;text-align:center;border-top:.5px dotted #D9CDB6;background:#FAF5EA;font-size:7.5pt">Mapa real de Dourados · região${bairros.length>1?'ões':''} destacada${bairros.length>1?'s':''} pelo cliente</div>
+        <div class="small" style="padding:6px 12px;text-align:center;border-top:.5px dotted #D9CDB6;background:#FAF5EA;font-size:7.5pt">Mapa real de ${_esc(l.loc_cidade || 'Dourados')}${l.loc_distrito ? ' · ' + _esc(l.loc_distrito) : ''} · região${bairros.length>1?'ões':''} destacada${bairros.length>1?'s':''} pelo cliente</div>
       </div>
     </div>
 
@@ -2488,7 +2548,7 @@ async function mostrarDossieNaTela() {
   host.innerHTML = '<div style="padding:36px 0;text-align:center;color:#9A6A52;font-family:\'Manrope\',sans-serif;font-size:13px;letter-spacing:.04em;">Montando seu dossiê personalizado…</div>';
 
   let mapaDataUrl = '';
-  try { mapaDataUrl = await renderMapaBairros(lead.loc_bairros); }
+  try { mapaDataUrl = await renderMapaBairros(lead.loc_bairros, lead.loc_cidade, lead.loc_estado, lead.loc_distrito); }
   catch (e) { console.warn('[preview] mapa:', e); }
 
   const outer = document.createElement('div');
@@ -2545,7 +2605,7 @@ async function gerarDossiePDF(salvarArquivo = true) {
   await new Promise(r => setTimeout(r, 50)); // deixa o toast aparecer
 
   // 1) Renderiza o mapa real de Dourados
-  const mapaDataUrl = await renderMapaBairros(l.loc_bairros);
+  const mapaDataUrl = await renderMapaBairros(l.loc_bairros, l.loc_cidade, l.loc_estado, l.loc_distrito);
 
   // 2) Monta o HTML do Dossiê em container oculto
   const cssStyle = document.createElement('style');
@@ -2675,7 +2735,7 @@ function gerarEmailHTML(l) {
         <div style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:3px;color:#9A6A52;font-weight:600;text-transform:uppercase;margin-bottom:6px">Os seis pontos</div>
         <h2 style="margin:0 0 18px;font-family:Georgia,serif;font-weight:400;font-size:22px;color:#22201C">O perfil <em style="color:#9A6A52;font-weight:300">em uma vista.</em></h2>
 
-        ${ponto(1, 'Localização',     _esc(bairros.join(' · ') || 'Sem preferência'),                _esc(prox.join(' · ') || 'Proximidades não informadas'))}
+        ${ponto(1, 'Localização',     _esc((l.loc_cidade||'Dourados') + '-' + (l.loc_estado||'MS') + (bairros.length ? ' · ' + bairros.join(' · ') : '')),  _esc((l.loc_distrito ? 'Distrito: ' + l.loc_distrito + ' · ' : '') + (prox.join(' · ') || 'Proximidades não informadas')))}
         ${ponto(2, 'Tipologia',       _esc(l.tipologia||'—'),                                       `${_esc(String(l.quartos||'—'))}Q · ${_esc(String(l.suites||'0'))} suítes · ${_esc(String(l.vagas||'—'))} vagas${l.area_m2?` · ${_esc(String(l.area_m2))} m²`:''} · ${_esc(estado)}`)}
         ${ponto(3, 'Qualidade',       _esc(padrao),                                                  `Prazo: ${_esc(prazoC)}`)}
         ${ponto(4, 'Diferenciais',    dif.length ? _esc(dif.join(' · ')) : '<span style="color:#8C8275">Nenhum item marcado</span>', l.obs_diferenciais ? _esc(l.obs_diferenciais) : '')}
@@ -2967,7 +3027,7 @@ async function baixarResumo_OLD() {
   // ═══ MAPA DA REGIÃO — gerado antes da seção 1 ═══════════════
   // (toast informativo enquanto o tile do OSM carrega)
   toast('Gerando mapa…');
-  const mapaDataUrl = await renderMapaBairros(l.loc_bairros);
+  const mapaDataUrl = await renderMapaBairros(l.loc_bairros, l.loc_cidade, l.loc_estado, l.loc_distrito);
 
   // ═══ OS 6 PONTOS ════════════════════════════════════════════
   // Ponto 1 SEMPRE começa na página 2
