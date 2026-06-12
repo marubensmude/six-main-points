@@ -1295,6 +1295,9 @@
         <div class="pgto-card" onclick="toggleOpt(this)" data-group="pgto"><span class="pgto-icon">🏗️</span><span class="pgto-name">Direto Construtora / Incorporadora</span><span class="pgto-desc">Parcelamento negociado</span></div>
       </div>
 
+      <!-- Negociação rural (Fazenda / Sítio / Gleba) — renderizado dinamicamente -->
+      <div id="rural-pgto" style="display:none"></div>
+
       <div class="field input-other" id="permuta-field">
         <label>Descreva o imóvel para dar como parte do pagamento</label>
         <textarea id="obs-permuta" placeholder="Tipo, localização, metragem e valor estimado..."></textarea>
@@ -1683,6 +1686,88 @@ function camposPares(l) {
     .map(c => [c.label, String(c.valor)]);
 }
 
+// ---- Negociação rural (Fazenda / Sítio / Gleba) ----
+const RURAL_PGTO_SUBS = ['fazenda', 'sitio', 'area_rural'];
+function rval(id) { const e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
+function selProdHTML(id, opts) { return '<select id="' + id + '">' + opts.map(o => '<option>' + o + '</option>').join('') + '</select>'; }
+function renderRuralPgto(sub) {
+  const box = document.getElementById('rural-pgto');
+  if (!box) return;
+  if (RURAL_PGTO_SUBS.indexOf(sub) === -1) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML =
+    '<div style="border:1px solid var(--border);background:var(--surface);padding:16px;margin:4px 0 18px;">'
+    + '<span class="section-label" style="margin-top:0">Negociação rural — precificação e pagamento</span>'
+    + '<div class="field"><label>Modelo de precificação</label><select id="rural-metodo" onchange="onMetodoRural()">'
+    + '<option value="">Selecione...</option>'
+    + '<option value="sacas">Sacas por alqueire (1 alqueire = 2,42 ha)</option>'
+    + '<option value="toneladas">Toneladas por hectare</option>'
+    + '<option value="reais">Valor em R$ (convencional)</option>'
+    + '</select></div>'
+    + '<div id="rural-metodo-campos"></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+    + '<div class="field"><label>Entrada — valor</label><input type="text" id="rural-entrada-valor" placeholder="Ex: 500.000"></div>'
+    + '<div class="field"><label>Moeda da entrada</label><select id="rural-entrada-moeda"><option>R$ (Reais)</option><option>US$ (Dólar)</option><option>Sacas / produto</option><option>Outra</option></select></div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+    + '<div class="field"><label>Parcelas — quantidade</label><input type="text" id="rural-parcelas-qtd" placeholder="Ex: 5"></div>'
+    + '<div class="field"><label>Periodicidade das parcelas</label><select id="rural-parcelas-per"><option>Anuais</option><option>Semestrais</option></select></div>'
+    + '</div>'
+    + '<div class="field"><label>Correção proposta</label><textarea id="rural-correcao" placeholder="Ex: correção pela saca de soja (CEPEA); IGP-M; ou sem correção..."></textarea></div>'
+    + '</div>';
+  box.style.display = '';
+}
+function onMetodoRural() {
+  const m = rval('rural-metodo');
+  const c = document.getElementById('rural-metodo-campos');
+  if (!c) return;
+  if (m === 'sacas') {
+    c.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+      + '<div class="field"><label>Produto 1</label>' + selProdHTML('rural-prod1', ['Soja','Milho','Trigo','Feijão','Sorgo','Outro']) + '</div>'
+      + '<div class="field"><label>Sacas por alqueire</label><input type="text" id="rural-prod1-qtd" placeholder="Ex: 60"></div>'
+      + '</div>'
+      + '<div id="rural-prod2-wrap" style="display:none"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+      + '<div class="field"><label>Produto 2</label>' + selProdHTML('rural-prod2', ['Soja','Milho','Trigo','Feijão','Sorgo','Outro']) + '</div>'
+      + '<div class="field"><label>Sacas por alqueire</label><input type="text" id="rural-prod2-qtd" placeholder="Ex: 30"></div>'
+      + '</div></div>'
+      + '<button type="button" class="btn-outline" id="rural-add-prod2" onclick="mostrarProd2()" style="margin:0 0 12px;padding:8px 14px;font-size:12px;width:auto;">+ Adicionar 2º produto</button>'
+      + '<div class="field"><label>Periodicidade</label><select id="rural-periodicidade"><option>Anual</option><option>Semestral</option></select></div>';
+  } else if (m === 'toneladas') {
+    c.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+      + '<div class="field"><label>Produto</label>' + selProdHTML('rural-prod1', ['Cana','Algodão','Soja','Milho','Outro']) + '</div>'
+      + '<div class="field"><label>Toneladas por hectare</label><input type="text" id="rural-prod1-qtd" placeholder="Ex: 80"></div>'
+      + '</div>'
+      + '<div class="field"><label>Periodicidade</label><select id="rural-periodicidade"><option>Anual</option><option>Semestral</option></select></div>';
+  } else {
+    c.innerHTML = '';
+  }
+}
+function mostrarProd2() {
+  const w = document.getElementById('rural-prod2-wrap'); if (w) w.style.display = '';
+  const b = document.getElementById('rural-add-prod2'); if (b) b.style.display = 'none';
+}
+// Resumo legível da negociação rural para o Dossiê / notificação
+function fmtRural(l) {
+  const r = l && l.rural;
+  if (!r || !r.metodo) return '';
+  let preco = '';
+  if (r.metodo === 'sacas') {
+    const p1 = [r.prod1_qtd, 'sc/alq', r.prod1].filter(Boolean).join(' ');
+    const p2 = r.prod2 ? ' + ' + [r.prod2_qtd, 'sc/alq', r.prod2].filter(Boolean).join(' ') : '';
+    preco = 'Sacas por alqueire: ' + p1 + p2 + (r.periodicidade ? ' (' + r.periodicidade + ')' : '');
+  } else if (r.metodo === 'toneladas') {
+    preco = 'Toneladas por hectare: ' + [r.prod1_qtd, 't/ha', r.prod1].filter(Boolean).join(' ') + (r.periodicidade ? ' (' + r.periodicidade + ')' : '');
+  } else {
+    preco = 'Valor em R$ (convencional)';
+  }
+  const partes = [preco];
+  if (r.entrada_valor) partes.push('Entrada: ' + r.entrada_valor + ' ' + (r.entrada_moeda || ''));
+  if (r.parcelas_qtd) partes.push('Parcelas: ' + r.parcelas_qtd + ' ' + (r.parcelas_per || ''));
+  if (r.correcao) partes.push('Correção: ' + r.correcao);
+  return partes.join(' · ');
+}
+
 // ---- Seleção de família / subtipo ----
 function selFamilia(el, fam) {
   document.querySelectorAll('[data-group="familia"]').forEach(e => e.classList.remove('sel'));
@@ -1707,6 +1792,7 @@ function selSubtipo(el, fam, sub) {
   renderCampos(camposAtuais);
   renderQualidade(def.qualidade);
   renderDiferenciais(def.diferenciais);
+  renderRuralPgto(sub);
   const ow = document.getElementById('obs-tipologia-wrap'); if (ow) ow.style.display = '';
 }
 // ---- Mini-descoberta guiada ("Ainda não sei") ----
@@ -1805,7 +1891,7 @@ function iniciarApp() {
     padrao: '', estado: '', prazo_compra: '', obs_qualidade: '',
     diferenciais: [], obs_diferenciais: '',
     preco_min: 500000, preco_max: 1500000,
-    pgto: [], obs_permuta: '', prazo_negocio: '', obs_finais: ''
+    pgto: [], obs_permuta: '', prazo_negocio: '', obs_finais: '', rural: null
   };
 
   document.getElementById('client-name-display').textContent = nome.split(' ')[0];
@@ -1898,6 +1984,23 @@ function coletarPasso(n) {
     lead.prazo_negocio = document.getElementById('prazo-negocio').value;
     lead.obs_finais = document.getElementById('obs-finais').value.trim();
     lead.quer_consultor = document.getElementById('quer-consultor').checked;
+    // Negociação rural (Fazenda / Sítio / Gleba), se o bloco estiver ativo
+    const rm = document.getElementById('rural-metodo');
+    if (rm && rm.value) {
+      const p2w = document.getElementById('rural-prod2-wrap');
+      const prod2Visivel = !!(p2w && p2w.style.display !== 'none');
+      lead.rural = {
+        metodo: rm.value,
+        prod1: rval('rural-prod1'), prod1_qtd: rval('rural-prod1-qtd'),
+        prod2: prod2Visivel ? rval('rural-prod2') : '', prod2_qtd: prod2Visivel ? rval('rural-prod2-qtd') : '',
+        periodicidade: rval('rural-periodicidade'),
+        entrada_valor: rval('rural-entrada-valor'), entrada_moeda: rval('rural-entrada-moeda'),
+        parcelas_qtd: rval('rural-parcelas-qtd'), parcelas_per: rval('rural-parcelas-per'),
+        correcao: rval('rural-correcao')
+      };
+    } else {
+      lead.rural = null;
+    }
   }
 }
 
@@ -1985,7 +2088,7 @@ Máximo:   ${fmtBRL(lead.preco_max)}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PONTO 6 — FORMA DE PAGAMENTO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Formas:         ${fmtArr(lead.pgto)}
+Formas:         ${fmtArr(lead.pgto)}${fmtRural(lead) ? '\nNegociação rural: ' + fmtRural(lead) : ''}
 Permuta:        ${fmt(lead.obs_permuta)}
 Prazo negócio:  ${fmt(lead.prazo_negocio)}
 Obs. finais:    ${fmt(lead.obs_finais)}
@@ -2965,7 +3068,7 @@ function gerarEmailHTML(l) {
         ${ponto(3, 'Qualidade',       _esc(padrao),                                                  `Prazo: ${_esc(prazoC)}`)}
         ${ponto(4, 'Diferenciais',    dif.length ? _esc(dif.join(' · ')) : '<span style="color:#8C8275">Nenhum item marcado</span>', l.obs_diferenciais ? _esc(l.obs_diferenciais) : '')}
         ${ponto(5, 'Faixa de Preço',  `${_esc(fmtBRL(l.preco_min))} — ${_esc(fmtBRL(l.preco_max))}`, sweetSpot(l.preco_min, l.preco_max) ? `Faixa de maior liquidez: ${sweetSpot(l.preco_min, l.preco_max)}` : '')}
-        ${ponto(6, 'Pagamento',       _esc(pgto),                                                    `${l.obs_permuta?'Permuta: '+_esc(l.obs_permuta)+' · ':''}Prazo p/ fechar: ${_esc(l.prazo_negocio||'—')}`)}
+        ${ponto(6, 'Pagamento',       _esc(pgto),                                                    _esc([(fmtRural(l) || ''), (l.obs_permuta?'Permuta: '+l.obs_permuta:''), 'Prazo p/ fechar: '+(l.prazo_negocio||'—')].filter(Boolean).join(' · ')))}
 
         ${l.obs_finais ? `
         <div style="margin:14px 0 6px;padding:14px 18px;border-left:3px solid #B5856A;background:#F6EDDB;font-family:Georgia,serif;font-style:italic;font-size:13px;color:#3A3530;line-height:1.5">${_esc(l.obs_finais)}</div>
@@ -3283,10 +3386,11 @@ async function baixarResumo_OLD() {
   ]);
   secao(6,'Forma de Pagamento',[
     ['Modalidades', l.pgto],
+    fmtRural(l) ? ['Negociação rural', fmtRural(l)] : null,
     ['Detalhes de permuta', fmt(l.obs_permuta)],
     ['Prazo para fechar negócio', fmt(l.prazo_negocio)],
     ['Observações finais', fmt(l.obs_finais)],
-  ]);
+  ].filter(Boolean));
 
   // ═══ FAIXA "PERFIL ENVIADO COM SUCESSO" — fim do documento ══
   if(y + 16 > PH - 14) newPage();
