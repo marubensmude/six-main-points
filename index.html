@@ -1177,7 +1177,7 @@
       </div>
 
       <div id="subtipo-wrap" style="display:none">
-        <span class="section-label">Tipo de imóvel</span>
+        <span class="section-label" id="subtipo-label">Tipo de imóvel</span>
         <div class="option-grid" id="subtipo-grid"></div>
       </div>
 
@@ -1576,7 +1576,7 @@ const CATALOGO = {
     pesqueiro: { label:'Pesqueiro', icon:'🎣', qualidade:QUAL_RURAL, diferenciais:DIF_PESQUEIRO,
       campos:[ {t:'slider',k:'area_m2',label:'Área total',min:1000,max:100000,step:500,def:5000,unit:'m²'},
         {t:'slider',k:'frente_agua',label:'Frente para água',min:10,max:2000,step:10,def:100,unit:'m'},
-        {t:'sel',k:'tipo_agua',label:'Tipo de água',opts:['Rio','Lago','Açude','Represa']},
+        {t:'multi',k:'tipo_agua',label:'Tipo de água',opts:['Rio','Lago','Açude','Represa']},
         {t:'sel',k:'casa_sede',label:'Estrutura',opts:['Sede de apoio','Sem estrutura','Indiferente']},
         {t:'counter',k:'quartos',label:'Quartos (hóspedes)',def:2} ] } } },
   comercial: { label:'Comercial', subtipos: {
@@ -1667,6 +1667,21 @@ function fmtCampos(l, sep) {
     .map(c => c.label + ': ' + c.valor)
     .join(sep);
 }
+// Gera "field cards" das características do tipo, para o Dossiê (HTML)
+function camposFieldsHTML(l) {
+  if (!l || !Array.isArray(l.tipologia_campos)) return '';
+  return l.tipologia_campos
+    .filter(c => c.valor != null && String(c.valor).trim() !== '')
+    .map(c => '<div class="field"><div class="k">' + c.label + '</div><div class="v" style="font-size:12pt">' + c.valor + '</div></div>')
+    .join('');
+}
+// Lista de pares [rótulo, valor] das características, para o PDF (jsPDF)
+function camposPares(l) {
+  if (!l || !Array.isArray(l.tipologia_campos)) return [];
+  return l.tipologia_campos
+    .filter(c => c.valor != null && String(c.valor).trim() !== '')
+    .map(c => [c.label, String(c.valor)]);
+}
 
 // ---- Seleção de família / subtipo ----
 function selFamilia(el, fam) {
@@ -1677,6 +1692,8 @@ function selFamilia(el, fam) {
   const ow = document.getElementById('obs-tipologia-wrap'); if (ow) ow.style.display = 'none';
   const grid = document.getElementById('subtipo-grid'), wrap = document.getElementById('subtipo-wrap');
   if (fam === 'descoberta') { iniciarDescoberta(); return; }
+  const lbl = document.getElementById('subtipo-label'); if (lbl) lbl.textContent = 'Tipo de imóvel';
+  try { lead.descoberta_resumo = ''; } catch (e) {}
   const subs = CATALOGO[fam] ? CATALOGO[fam].subtipos : {};
   if (grid) grid.innerHTML = Object.keys(subs).map(k => '<div class="opt-card" onclick="selSubtipo(this,\'' + fam + '\',\'' + k + '\')" data-group="subtipo"><span class="opt-icon">' + subs[k].icon + '</span><span class="opt-label">' + subs[k].label + '</span></div>').join('');
   if (wrap) wrap.style.display = '';
@@ -1692,13 +1709,77 @@ function selSubtipo(el, fam, sub) {
   renderDiferenciais(def.diferenciais);
   const ow = document.getElementById('obs-tipologia-wrap'); if (ow) ow.style.display = '';
 }
-// Fase 3 (placeholder): por ora mostra todos os subtipos para escolha
+// ---- Mini-descoberta guiada ("Ainda não sei") ----
+const DESCOBERTA_PERGUNTAS = [
+  { q:'Quando você imagina seu dia a dia, você se vê em…', opts:[
+      {l:'Uma casa com espaço e quintal', v:'casa'},
+      {l:'Um apartamento prático e seguro', v:'apto'},
+      {l:'Em contato com a natureza, no campo', v:'campo'},
+      {l:'Um espaço para um negócio', v:'negocio'} ] },
+  { q:'Esse imóvel é mais para…', opts:[
+      {l:'Morar', v:'morar'},
+      {l:'Investir / gerar renda', v:'investir'},
+      {l:'Os dois', v:'ambos'} ] },
+  { q:'Você prefere…', opts:[
+      {l:'Movimento e conveniência urbana', v:'urbano'},
+      {l:'Tranquilidade e privacidade', v:'tranquilo'},
+      {l:'Tanto faz', v:'tanto'} ] }
+];
+let descobertaResp = {};
+
 function iniciarDescoberta() {
-  const grid = document.getElementById('subtipo-grid'), wrap = document.getElementById('subtipo-wrap');
-  let h = '';
-  Object.keys(CATALOGO).forEach(fam => { const subs = CATALOGO[fam].subtipos; Object.keys(subs).forEach(k => { h += '<div class="opt-card" onclick="selSubtipo(this,\'' + fam + '\',\'' + k + '\')" data-group="subtipo"><span class="opt-icon">' + subs[k].icon + '</span><span class="opt-label">' + subs[k].label + '</span></div>'; }); });
-  if (grid) grid.innerHTML = h;
+  descobertaResp = {};
+  const wrap = document.getElementById('subtipo-wrap');
   if (wrap) wrap.style.display = '';
+  const tc = document.getElementById('tipo-campos'); if (tc) tc.innerHTML = '';
+  const ow = document.getElementById('obs-tipologia-wrap'); if (ow) ow.style.display = 'none';
+  renderDescobertaPergunta(0);
+}
+function renderDescobertaPergunta(i) {
+  const p = DESCOBERTA_PERGUNTAS[i];
+  const lbl = document.getElementById('subtipo-label');
+  const grid = document.getElementById('subtipo-grid');
+  if (lbl) lbl.textContent = (i + 1) + '/' + DESCOBERTA_PERGUNTAS.length + ' · ' + p.q;
+  if (grid) grid.innerHTML = p.opts.map(o => '<div class="opt-card" onclick="descobertaResponder(' + i + ',\'' + o.v + '\')" data-group="descoberta-opt"><span class="opt-label">' + o.l + '</span></div>').join('');
+}
+function descobertaResponder(i, v) {
+  descobertaResp[i] = v;
+  if (i + 1 < DESCOBERTA_PERGUNTAS.length) renderDescobertaPergunta(i + 1);
+  else descobertaSugerir();
+}
+function descobertaSugerir() {
+  const r = descobertaResp;
+  let sug = [];
+  if (r[0] === 'casa') sug = [['residencial','casa_cond'],['residencial','casa_rua']];
+  else if (r[0] === 'apto') sug = [['residencial','apartamento'],['residencial','cobertura']];
+  else if (r[0] === 'campo') sug = [['rural','chacara'],['rural','sitio'],['rural','fazenda'],['rural','pesqueiro']];
+  else if (r[0] === 'negocio') sug = [['comercial','sala_comercial'],['comercial','galpao'],['comercial','predio_loja']];
+  if (r[1] === 'investir' || r[1] === 'ambos') {
+    sug.push(['terreno','terreno_urbano']);
+    if (r[0] === 'campo') sug.push(['terreno','area_rural']);
+  }
+  sug = sug.slice(0, 5);
+  // Guarda o contexto da descoberta para a curadoria da Mude
+  const mVida = { casa:'sonha com casa', apto:'prefere apartamento', campo:'quer contato com a natureza', negocio:'busca espaço para um negócio' };
+  const mFin  = { morar:'para morar', investir:'para investir', ambos:'para morar e investir' };
+  const mEst  = { urbano:'estilo urbano', tranquilo:'busca tranquilidade', tanto:'aberto a opções' };
+  lead.descoberta_resumo = 'Perfil (descoberta guiada): ' + [mVida[r[0]], mFin[r[1]], mEst[r[2]]].filter(Boolean).join(', ') + '.';
+  const grid = document.getElementById('subtipo-grid');
+  const lbl = document.getElementById('subtipo-label');
+  if (lbl) lbl.textContent = 'Pelo que você descreveu, estes tipos fazem mais sentido — escolha um:';
+  let h = sug.map(function (par) {
+    const s = CATALOGO[par[0]].subtipos[par[1]];
+    return '<div class="opt-card" onclick="selSubtipo(this,\'' + par[0] + '\',\'' + par[1] + '\')" data-group="subtipo"><span class="opt-icon">' + s.icon + '</span><span class="opt-label">' + s.label + '</span></div>';
+  }).join('');
+  h += '<div class="opt-card" onclick="descobertaVerTodos()" data-group="subtipo"><span class="opt-icon">🔎</span><span class="opt-label">Ver todos os tipos</span></div>';
+  if (grid) grid.innerHTML = h;
+}
+function descobertaVerTodos() {
+  const grid = document.getElementById('subtipo-grid'), lbl = document.getElementById('subtipo-label');
+  if (lbl) lbl.textContent = 'Todos os tipos disponíveis:';
+  let h = '';
+  Object.keys(CATALOGO).forEach(function (fam) { const subs = CATALOGO[fam].subtipos; Object.keys(subs).forEach(function (k) { h += '<div class="opt-card" onclick="selSubtipo(this,\'' + fam + '\',\'' + k + '\')" data-group="subtipo"><span class="opt-icon">' + subs[k].icon + '</span><span class="opt-label">' + subs[k].label + '</span></div>'; }); });
+  if (grid) grid.innerHTML = h;
 }
 
 function selInteresse(el) {
@@ -1795,6 +1876,7 @@ function coletarPasso(n) {
     const _area  = _m.area_m2 || _m.area_terreno || _m.area_ha || '';
     lead.area_m2 = _area ? String(_area).replace(/[^\d.,]/g, '') : '';
     lead.obs_tipologia = (document.getElementById('obs-tipologia') ? document.getElementById('obs-tipologia').value : '').trim();
+    if (lead.descoberta_resumo) lead.obs_tipologia = (lead.descoberta_resumo + (lead.obs_tipologia ? ' · ' + lead.obs_tipologia : '')).trim();
   }
   if (n === 2) {
     lead.padrao      = Array.from(document.querySelectorAll('[data-group="padrao"].sel')).map(e=>e.querySelector('.opt-label').textContent.trim());
@@ -1878,9 +1960,8 @@ Observações:      ${fmt(lead.obs_loc)}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PONTO 2 — TIPOLOGIA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Tipo:       ${fmt(lead.tipologia)}
-Quartos:    ${lead.quartos}  |  Suítes: ${lead.suites}  |  Vagas: ${lead.vagas}
-Área mín.:  ${lead.area_m2} m²
+Tipo:       ${((lead.familia && CATALOGO[lead.familia]) ? CATALOGO[lead.familia].label + ' · ' : '') + fmt(lead.tipologia)}
+${fmtCampos(lead, '\n') || '—'}${lead.obs_tipologia ? '\nObs.: ' + lead.obs_tipologia : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PONTO 3 — QUALIDADE
@@ -2568,15 +2649,10 @@ function gerarDossieHTML(l, mapaDataUrl) {
     </div>
 
     <div class="field-row f4">
-      <div class="field accent" style="grid-column:span 2"><div class="k">Tipo de imóvel</div><div class="v">${_esc(tipologia)}</div></div>
-      <div class="field"><div class="k">Quartos</div><div class="v">${String(quartos).padStart(2,'0')}</div></div>
-      <div class="field"><div class="k">Suítes</div><div class="v">${String(suites).padStart(2,'0')}</div></div>
+      <div class="field accent" style="grid-column:span 2"><div class="k">Tipo de imóvel</div><div class="v">${_esc(((l.familia && CATALOGO[l.familia]) ? CATALOGO[l.familia].label + ' · ' : '') + tipologia)}</div></div>
+      <div class="field" style="grid-column:span 2"><div class="k">Estado do imóvel</div><div class="v" style="font-size:11.5pt;line-height:1.2">${_esc(estado)}</div></div>
     </div>
-    <div class="field-row f3">
-      <div class="field"><div class="k">Vagas</div><div class="v">${String(vagas).padStart(2,'0')}</div></div>
-      <div class="field"><div class="k">Área mínima</div><div class="v">${areaM2}</div></div>
-      <div class="field"><div class="k">Estado do imóvel</div><div class="v" style="font-size:11.5pt;line-height:1.2">${_esc(estado)}</div></div>
-    </div>
+    <div class="field-row f3">${camposFieldsHTML(l) || '<div class="field"><div class="k">Características</div><div class="v">—</div></div>'}</div>
 
     <div class="star-rule"><div class="ln"></div><div class="st">✦</div><div class="ln"></div></div>
 
@@ -3190,12 +3266,8 @@ async function baixarResumo_OLD() {
     imagemMapa(mapaDataUrl, l.loc_bairros);
   });
   secao(2,'Tipologia do Imóvel Ideal',[
-    ['Tipo de imóvel', fmt(l.tipologia)],
-    ['Quartos mínimos', String(l.quartos||'—')],
-    ['Suítes', String(l.suites||'—')],
-    ['Vagas de garagem', String(l.vagas||'—')],
-    ['Área mínima desejada', l.area_m2 ? l.area_m2+' m²' : '—'],
-  ]);
+    ['Tipo de imóvel', ((l.familia && CATALOGO[l.familia]) ? CATALOGO[l.familia].label + ' · ' : '') + fmt(l.tipologia)],
+  ].concat(camposPares(l)));
   secao(3,'Qualidade',[
     ['Padrão de acabamento', l.padrao],
     ['Estado do imóvel', l.estado],
@@ -3320,7 +3392,7 @@ function carregarLeadBusca() {
     `<b>Padrão:</b> ${fmtArr(l.padrao)}`,
     `<b>Regiões:</b> ${fmtArr(l.loc_bairros)}`,
     `<b>Preço:</b> ${fmtBRL(l.preco_min)} – ${fmtBRL(l.preco_max)}`,
-    `<b>Quartos:</b> ${l.quartos} · <b>Suítes:</b> ${l.suites} · <b>Área mín.:</b> ${l.area_m2} m²`,
+    `<b>Características:</b> ${fmtCampos(l) || '—'}`,
     `<b>Diferenciais:</b> ${fmtArr(l.diferenciais)}`,
   ].join('<br>');
   resumo.style.display = 'block';
