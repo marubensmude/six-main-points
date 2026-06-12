@@ -1522,7 +1522,7 @@ const QUAL_COM   = { padrao:['Simples','Médio','Alto padrão'], estado:['Pronto
 const QUAL_TER   = { padrao:['Sem infraestrutura','Infra parcial','Infra completa','Pronto para construir'], estado:['Limpo','Com projeto aprovado','Bruto / a limpar','Indiferente'] };
 
 const DIF_CASA       = ['Piscina','Churrasqueira','Área gourmet','Quintal','Home office','Energia solar / fotovoltaica','Automação / Smart','Pet friendly','Varanda','Depósito / Despensa'];
-const DIF_COND       = DIF_CASA.concat(['Segurança 24h','Portaria','Lazer completo','Quadra esportiva','Salão de festas','Playground','Espaço kids']);
+const DIF_COND       = DIF_CASA.concat(['Portaria 24h / blindada','Ronda / vigilância','Segurança perimetral','Clube / sede de lazer','Piscina do condomínio','Academia do condomínio','Quadra poliesportiva','Quadra de tênis','Beach tennis','Salão de festas / gourmet','Espaço kids / playground','Pista de caminhada','Ciclovia','Lago / espelho d\'água','Praças e áreas verdes','Espaço pet','Gerador do condomínio','Lotes amplos','Ruas largas e arborizadas','Acesso controlado / biometria']);
 const DIF_APTO       = ['Varanda gourmet','Vista livre','Andar alto','Piscina','Academia','Salão de festas','Portaria 24h','Vaga coberta','Pet friendly','Espaço kids'];
 const DIF_CHACARA    = ['Piscina','Área gourmet / lazer','Campo / gramado','Pomar','Poço artesiano','Nascente','Açude / lago','Energia (rede/solar)','Casa de caseiro','Pet friendly'];
 const DIF_SITIO      = ['Pasto formado','Curral','Casa de caseiro','Galpão','Pomar / horta','Açude','Energia','Reserva de mata','Acesso por estrada boa'];
@@ -1938,9 +1938,9 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
     const msgEl = document.getElementById('success-msg');
     if (msgEl) {
       if (lead.quer_consultor) {
-        msgEl.textContent = 'Seu perfil foi salvo e nossa equipe entrará em contato pelo WhatsApp para apresentar as melhores oportunidades para você.';
+        msgEl.innerHTML = 'Recebemos o seu perfil com todos os detalhes — e isso muda tudo. A partir de agora, um especialista da Mude Imóveis fará a curadoria pessoalmente: em vez de te enviar uma lista, vamos selecionar a dedo as oportunidades que realmente conversam com o que você busca. <strong>Entraremos em contato pelo WhatsApp em breve.</strong> É um prazer acompanhar essa decisão com você.';
       } else {
-        msgEl.innerHTML = 'Seu perfil foi salvo com sucesso. Agora sabemos exatamente o que você procura — e é esse perfil que nos permite encontrar o imóvel certo para você. Muitas das melhores oportunidades de Dourados não chegam aos portais: elas passam primeiro pela nossa equipe. Quando quiser que a gente faça essa busca por você, é só chamar no WhatsApp — seria uma pena deixar o imóvel ideal passar. Seu Dossiê Personalizado está logo abaixo.';
+        msgEl.innerHTML = 'Seu perfil foi salvo com todos os detalhes — e é exatamente isso que nos permite fazer um trabalho de <strong>curadoria, não de catálogo</strong>. Muitas das melhores oportunidades de Dourados e região não chegam aos portais: passam primeiro pela nossa equipe. Quando quiser que a gente faça essa busca a dedo por você, é só chamar no WhatsApp. Seu Dossiê Personalizado está logo abaixo.';
       }
     }
   } catch(e) { console.warn('msg sucesso:', e); }
@@ -2144,7 +2144,7 @@ async function renderMapaBairros(bairros, cidade, estado, distrito) {
     // Cidade fora de Dourados → centraliza na cidade/distrito informados
     const pt = await geocodificarCidade(cidade, estado, distrito);
     alvos = pt
-      ? [{ lat: pt.lat, lng: pt.lng, r: distrito ? 5000 : 4000, label: cidade }]
+      ? [{ lat: pt.lat, lng: pt.lng, r: distrito ? 2200 : 3200, label: cidade, z: distrito ? 14 : 13 }]
       : [BAIRROS_COORDS['Qualquer região']];
   }
   if (!alvos.length) return null;
@@ -2188,7 +2188,7 @@ async function renderMapaBairros(bairros, cidade, estado, distrito) {
       });
 
       if (alvos.length === 1) {
-        map.setView([alvos[0].lat, alvos[0].lng], alvos[0].r > 3000 ? 12 : 13);
+        map.setView([alvos[0].lat, alvos[0].lng], alvos[0].z || (alvos[0].r > 3000 ? 12 : 13));
       } else {
         map.fitBounds(grupo.getBounds().pad(0.25));
       }
@@ -2635,7 +2635,7 @@ function gerarDossieHTML(l, mapaDataUrl) {
     <div class="field-row f3">
       <div class="field"><div class="k">Mínimo</div><div class="v">${precoMin}</div></div>
       <div class="field accent"><div class="k">Máximo</div><div class="v">${precoMax}</div></div>
-      <div class="field"><div class="k">Sweet-spot</div><div class="v" style="font-size:12pt">${_esc(sweet)}</div></div>
+      <div class="field"><div class="k">Faixa de maior liquidez</div><div class="v" style="font-size:12pt">${_esc(sweet)}</div></div>
     </div>
 
     <div class="field">
@@ -2888,7 +2888,7 @@ function gerarEmailHTML(l) {
         ${ponto(2, 'Tipologia',       _esc(((l.familia && CATALOGO[l.familia]) ? CATALOGO[l.familia].label + ' · ' : '') + (l.tipologia||'—')),  _esc([fmtCampos(l), (l.obs_tipologia||'')].filter(Boolean).join(' · ') || '—'))}
         ${ponto(3, 'Qualidade',       _esc(padrao),                                                  `Prazo: ${_esc(prazoC)}`)}
         ${ponto(4, 'Diferenciais',    dif.length ? _esc(dif.join(' · ')) : '<span style="color:#8C8275">Nenhum item marcado</span>', l.obs_diferenciais ? _esc(l.obs_diferenciais) : '')}
-        ${ponto(5, 'Faixa de Preço',  `${_esc(fmtBRL(l.preco_min))} — ${_esc(fmtBRL(l.preco_max))}`, sweetSpot(l.preco_min, l.preco_max) ? `Sweet-spot: ${sweetSpot(l.preco_min, l.preco_max)}` : '')}
+        ${ponto(5, 'Faixa de Preço',  `${_esc(fmtBRL(l.preco_min))} — ${_esc(fmtBRL(l.preco_max))}`, sweetSpot(l.preco_min, l.preco_max) ? `Faixa de maior liquidez: ${sweetSpot(l.preco_min, l.preco_max)}` : '')}
         ${ponto(6, 'Pagamento',       _esc(pgto),                                                    `${l.obs_permuta?'Permuta: '+_esc(l.obs_permuta)+' · ':''}Prazo p/ fechar: ${_esc(l.prazo_negocio||'—')}`)}
 
         ${l.obs_finais ? `
