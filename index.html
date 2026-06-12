@@ -63,6 +63,17 @@
   const EMAILJS_SERVICE_ID  = 'service_y3sqtti';
   const EMAILJS_TEMPLATE_ID = 'template_x5cqqfz';
   const EMAIL_DESTINO       = 'mario@mudeimobiliaria.com.br';
+  // ── MODO DIAGNÓSTICO ──────────────────────────────────────────────
+  // Ative acessando a página com  ?debug=1  (ex.: smp.imoveismude.com.br/?debug=1)
+  // Quando ligado, mostra na tela o resultado real do envio do EmailJS
+  // (sucesso OU o erro exato), em vez de falhar em silêncio.
+  const SMP_DEBUG = /[?&]debug=1\b/.test(location.search);
+  // ── PLANO B (Google Apps Script) ──────────────────────────────────
+  // Canal de notificação redundante, independente do EmailJS (sem
+  // Allowlist e sem cota de terceiros). Dispara automaticamente quando
+  // o EmailJS falha, garantindo que nenhum lead se perca.
+  // Cole aqui a URL /exec gerada ao publicar o plano-b-apps-script.gs:
+  const APPS_SCRIPT_URL = '[PREENCHER]';
   (function(){ emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); })();
 
   // ── TRACKING / ATRIBUIÇÃO ────────────────────────────────────────────────────
@@ -1763,14 +1774,36 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
       lead_utm_campaign: (lead.attribution && lead.attribution.utm_campaign) || '—',
       lead_utm_content:  (lead.attribution && lead.attribution.utm_content)  || '—',
       lead_attribution_json: JSON.stringify(lead.attribution || {}, null, 2)
-    }).then(() => {
-      console.info('[EmailJS] notificação enviada.');
+    }).then((resp) => {
+      console.info('[EmailJS] notificação enviada.', resp && resp.status, resp && resp.text);
+      if (SMP_DEBUG) {
+        alert('✅ EmailJS OK\n\nStatus: ' + (resp && resp.status) +
+              '\nResposta: ' + (resp && resp.text) +
+              '\nDestino (to_email): ' + EMAIL_DESTINO +
+              '\n\nSe o e-mail mesmo assim não chegou, o problema é de ENTREGA\n' +
+              '(spam/filtro do destinatário ou o campo "To Email" do template\n' +
+              'não está usando {{to_email}}).');
+      }
     }).catch(err => {
-      // Falha silenciosa: o lead JÁ foi salvo (Supabase + navegador).
+      // Falha silenciosa em produção: o lead JÁ foi salvo (Supabase + navegador).
       // O e-mail é apenas uma notificação interna para a Mude, então o
       // cliente NUNCA deve ver erro de envio. Detalhe fica só no console.
       console.warn('[EmailJS] falha ao enviar notificação interna:', JSON.stringify(err));
+      // PLANO B: EmailJS falhou (ex.: Allowlist, cota) → notifica via Apps Script.
+      notificarPlanoB(lead);
+      if (SMP_DEBUG) {
+        alert('❌ EmailJS FALHOU\n\nStatus: ' + (err && err.status) +
+              '\nErro: ' + (err && (err.text || err.message || JSON.stringify(err))) +
+              '\n\nLeitura rápida:\n' +
+              '• 422 → variável faltando no template (ex.: "To Email" sem {{to_email}})\n' +
+              '• 400 → service/template/public key incorretos\n' +
+              '• 403 → API bloqueada ou cota do plano esgotada\n' +
+              '• 426/2xx mas sem e-mail → serviço de envio desconectado');
+      }
     });
+  } else {
+    // EmailJS desativado → usa direto o Plano B.
+    notificarPlanoB(lead);
   }
 
   // Mensagem da tela de sucesso muda conforme o cliente pediu (ou não)
@@ -1794,6 +1827,80 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
     if(s) s.scrollTop = 0;
   }, 50);
 }
+
+// ════════════════════════════════════════════════════════════════════
+//  PLANO B — Notificação via Google Apps Script (independente do EmailJS)
+//  Dispara quando o EmailJS falha. Usa fetch no-cors + text/plain para
+//  evitar bloqueio de CORS (fire-and-forget; o e-mail é enviado mesmo
+//  sem podermos ler a resposta).
+// ════════════════════════════════════════════════════════════════════
+function notificarPlanoB(lead) {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === '[PREENCHER]') {
+    console.warn('[PlanoB] APPS_SCRIPT_URL não configurada — pulando.');
+    if (SMP_DEBUG) alert('⚠️ Plano B não configurado.\nCole a URL /exec do Apps Script em APPS_SCRIPT_URL no index.html.');
+    return;
+  }
+  var a = lead.attribution || {};
+  var payload = {
+    nome:           lead.nome,
+    email:          lead.email,
+    wpp:            lead.wpp,
+    interesse:      lead.interesse,
+    quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao',
+    utm_source:     a.utm_source   || '—',
+    utm_medium:     a.utm_medium   || '—',
+    utm_campaign:   a.utm_campaign || '—',
+    utm_content:    a.utm_content  || '—',
+    quando:         new Date().toLocaleString('pt-BR')
+  };
+  try {
+    fetch(APPS_SCRIPT_URL, {
+      method:  'POST',
+      mode:    'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify(payload)
+    }).then(() => {
+      console.info('[PlanoB] notificação disparada (Apps Script).');
+      desenfileirarPendencia(lead);
+      if (SMP_DEBUG) alert('✅ Plano B (Apps Script) disparado.\nConfira a caixa de ' + EMAIL_DESTINO + ' (inclusive spam).');
+    }).catch(err => {
+      console.warn('[PlanoB] falha de rede:', err);
+      enfileirarPendencia(lead);
+      if (SMP_DEBUG) alert('❌ Plano B (Apps Script) falhou no envio: ' + err + '\nLead guardado na fila local para reenvio.');
+    });
+  } catch (err) {
+    console.warn('[PlanoB] erro:', err);
+    enfileirarPendencia(lead);
+  }
+}
+
+// Fila local de segurança (rede final): se até o Plano B falhar, o lead
+// fica guardado no navegador e é reenviado na próxima carga da página.
+function enfileirarPendencia(lead) {
+  try {
+    var q = JSON.parse(localStorage.getItem('mude_pending_notif') || '[]');
+    q.push({ lead: lead, ts: Date.now() });
+    localStorage.setItem('mude_pending_notif', JSON.stringify(q));
+  } catch (e) { console.warn('[PlanoB] não foi possível enfileirar:', e); }
+}
+function desenfileirarPendencia(lead) {
+  try {
+    var q = JSON.parse(localStorage.getItem('mude_pending_notif') || '[]');
+    q = q.filter(function(it){ return !(it.lead && lead && it.lead.email === lead.email && it.lead.wpp === lead.wpp); });
+    localStorage.setItem('mude_pending_notif', JSON.stringify(q));
+  } catch (e) {}
+}
+// Ao carregar a página, tenta reenviar pendências acumuladas (se houver).
+function reprocessarPendencias() {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === '[PREENCHER]') return;
+  var q;
+  try { q = JSON.parse(localStorage.getItem('mude_pending_notif') || '[]'); } catch (e) { return; }
+  if (!q.length) return;
+  console.info('[PlanoB] reprocessando ' + q.length + ' pendência(s).');
+  localStorage.setItem('mude_pending_notif', '[]');
+  q.forEach(function(it){ if (it && it.lead) notificarPlanoB(it.lead); });
+}
+window.addEventListener('load', function(){ try { reprocessarPendencias(); } catch(e){} });
 
 function getLeads() {
   try { return JSON.parse(localStorage.getItem('mude_leads')) || []; } catch(e) { return []; }
