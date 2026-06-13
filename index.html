@@ -807,7 +807,7 @@
     gap: 7px; margin-bottom: 18px;
   }
   .diff-item {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
     background: var(--white); border: 1px solid var(--border);
     padding: 10px 13px; cursor: pointer;
     transition: all var(--transition); user-select: none;
@@ -825,6 +825,35 @@
   .diff-item.sel .diff-check { background: var(--gold); border-color: var(--gold); color: var(--white); content: '✓'; }
   .diff-label { font-size: 12.5px; color: var(--text-muted); font-weight: 300; }
   .diff-item.sel .diff-label { color: var(--gold-dark); font-weight: 500; }
+
+  /* ══════ FASE 4 · PRIORIDADE DOS DIFERENCIAIS ══════ */
+  .diff-prio { display: none; flex-basis: 100%; width: 100%; gap: 5px; margin-top: 3px; }
+  .diff-item.sel .diff-prio { display: flex; }
+  body.smp-rapido .diff-item.sel .diff-prio { display: none; }   /* Modo Rápido: sem detalhar prioridade */
+  .dp {
+    font-size: 9.5px; letter-spacing: .03em; text-transform: uppercase; font-weight: 500;
+    padding: 4px 8px; border: 1px solid var(--border); background: var(--white);
+    color: var(--text-dim); cursor: pointer; border-radius: 20px;
+    transition: all var(--transition);
+  }
+  .dp:hover { border-color: var(--gold-border); color: var(--ink); }
+  .diff-item[data-prio="es"] .dp.es { background: var(--gold-dark); color: var(--white); border-color: var(--gold-dark); }
+  .diff-item[data-prio="im"] .dp.im { background: var(--gold);      color: var(--white); border-color: var(--gold); }
+  .diff-item[data-prio="de"] .dp.de { background: #E8DFC2;          color: var(--gold-dark); border-color: #E2D5AE; }
+
+  /* ══════ FASE 4 · ESCOLHA DE MODO (Rápido / Completo) ══════ */
+  .modo-group { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .modo-opt {
+    border: 1px solid var(--border); background: var(--white); padding: 13px 14px;
+    cursor: pointer; transition: all var(--transition); user-select: none;
+    display: flex; flex-direction: column; gap: 2px; position: relative;
+  }
+  .modo-opt:hover { border-color: var(--gold); }
+  .modo-opt.sel { border-color: var(--gold); border-width: 1.5px; background: var(--gold-muted); border-top: 3px solid var(--gold); }
+  .modo-tag { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold-dark); font-weight: 600; }
+  .modo-time { font-family: var(--ff-serif); font-size: 21px; font-weight: 500; color: var(--ink); line-height: 1; }
+  .modo-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-top: 2px; }
+  @media (max-width: 460px){ .modo-group { grid-template-columns: 1fr; } }
 
   /* Pgto cards */
   .pgto-grid {
@@ -1134,6 +1163,22 @@
           </div>
           <div class="interest-opt" data-val="Ainda avaliando" onclick="selInteresse(this)">
             <span class="icon">🔍</span><span class="label">Ainda avaliando</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Como você prefere fazer seu diagnóstico</label>
+        <div class="modo-group">
+          <div class="modo-opt" data-modo="rapido" onclick="selModo(this,'rapido')">
+            <span class="modo-tag">Modo Rápido</span>
+            <span class="modo-time">2 min</span>
+            <span class="modo-desc">O essencial dos seis pontos, direto ao ponto.</span>
+          </div>
+          <div class="modo-opt sel" data-modo="completo" onclick="selModo(this,'completo')">
+            <span class="modo-tag">Modo Completo</span>
+            <span class="modo-time">5 min</span>
+            <span class="modo-desc">Curadoria refinada, com prioridades. Ideal para alto padrão.</span>
           </div>
         </div>
       </div>
@@ -1736,7 +1781,16 @@ function renderQualidade(q) {
 function renderDiferenciais(arr) {
   arr = (arr && arr.length) ? arr : DIF_CASA;
   const g = document.getElementById('diff-grid-dyn');
-  if (g) g.innerHTML = arr.map(d => '<div class="diff-item" onclick="toggleDiff(this)"><div class="diff-check">✓</div><span class="diff-label">' + d + '</span></div>').join('');
+  if (g) g.innerHTML = arr.map(d =>
+    '<div class="diff-item" data-prio="im" onclick="toggleDiff(this)">' +
+      '<div class="diff-check">✓</div>' +
+      '<span class="diff-label">' + d + '</span>' +
+      '<div class="diff-prio" onclick="event.stopPropagation()">' +
+        '<span class="dp es" onclick="setDiffPrio(this,\'es\')">Essencial</span>' +
+        '<span class="dp im" onclick="setDiffPrio(this,\'im\')">Importante</span>' +
+        '<span class="dp de" onclick="setDiffPrio(this,\'de\')">Desejável</span>' +
+      '</div>' +
+    '</div>').join('');
 }
 // Formata as características próprias do tipo (ex.: "Quartos: 3 · Área: 200 m² · Aptidão: Pecuária")
 function fmtCampos(l, sep) {
@@ -2012,13 +2066,15 @@ function iniciarApp() {
     familia: '', subtipo: '', tipologia: '', tipologia_campos: [], obs_tipologia: '',
     quartos: '', suites: '', vagas: '', area_m2: '',
     padrao: '', estado: '', prazo_compra: '', obs_qualidade: '',
-    diferenciais: [], obs_diferenciais: '',
+    diferenciais: [], diferenciais_prio: {}, obs_diferenciais: '', modo: modoSel,
     preco_min: 500000, preco_max: 1500000,
     pgto: [], permuta_tipos: [], permuta_valor: '', obs_permuta: '', prazo_negocio: '', obs_finais: '', rural: null
   };
 
   document.getElementById('client-name-display').textContent = nome.split(' ')[0];
   document.getElementById('success-name').textContent = nome.split(' ')[0];
+  // Fase 4 · aplica o modo escolhido (controla a exibição da prioridade dos diferenciais)
+  document.body.classList.toggle('smp-rapido', modoSel === 'rapido');
   showScreen('app');
   // Inicializa localidades (Dourados x outras) e defaults de Qualidade/Diferenciais
   try { atualizarLocalidades(); renderQualidade(QUAL_RES); renderDiferenciais(DIF_CASA); renderPgtoCards(''); } catch(e){ console.warn('init form:', e); }
@@ -2153,7 +2209,16 @@ function coletarPasso(n) {
     lead.obs_qualidade = (document.getElementById('obs-qualidade') ? document.getElementById('obs-qualidade').value : '').trim();
   }
   if (n === 3) {
-    lead.diferenciais = Array.from(document.querySelectorAll('.diff-item.sel')).map(e => e.querySelector('.diff-label').textContent.trim());
+    const selDifs = Array.from(document.querySelectorAll('.diff-item.sel'));
+    lead.diferenciais = selDifs.map(e => e.querySelector('.diff-label').textContent.trim());
+    // Fase 4 · prioridades (só no Modo Completo; no Rápido fica vazio)
+    lead.diferenciais_prio = {};
+    if (modoSel !== 'rapido') {
+      selDifs.forEach(e => {
+        const lab = e.querySelector('.diff-label').textContent.trim();
+        lead.diferenciais_prio[lab] = e.getAttribute('data-prio') || 'im';
+      });
+    }
     lead.obs_diferenciais = document.getElementById('obs-diferenciais').value.trim();
   }
   if (n === 4) {
@@ -2261,6 +2326,7 @@ Prazo compra:   ${fmt(lead.prazo_compra)}
 PONTO 4 — DIFERENCIAIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Itens:       ${fmtArr(lead.diferenciais)}
+Prioridades: ${fmtDifPrio(lead)}
 Observações: ${fmt(lead.obs_diferenciais)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2807,11 +2873,22 @@ function gerarDossieHTML(l, mapaDataUrl) {
   const dossNum         = dossieNum(l);
   const dataExt         = dataPorExtenso();
 
+  // Fase 4 · selo de prioridade por diferencial (só no Modo Completo)
+  const _prioMap = (l.diferenciais_prio && typeof l.diferenciais_prio === 'object') ? l.diferenciais_prio : {};
+  const prioLU = {}; Object.keys(_prioMap).forEach(k => prioLU[k.toLowerCase()] = _prioMap[k]);
+  const _prioSty = { es: 'background:#8C6E28;color:#FBF7EF;', im: 'background:#C9A84C;color:#FBF7EF;', de: 'background:#EFE6CC;color:#8C6E28;' };
+  const prioBadge = (name) => {
+    if (l.modo === 'rapido') return '';
+    const pr = prioLU[String(name).toLowerCase()];
+    if (!pr || !_prioSty[pr]) return '';
+    return `<span style="${_prioSty[pr]}font-size:6.5pt;letter-spacing:.03em;padding:1px 6px;border-radius:999px;margin-left:6px;font-weight:700;white-space:nowrap;">${PRIO_LBL_DOSS[pr]}</span>`;
+  };
+
   // Determina o checklist: marca os que foram selecionados; outros mostram tracejado/cinza
   const checklist = DIFERENCIAIS_CANON.map(item => {
     const marcado = diferenciais.some(d => d.toLowerCase() === item.toLowerCase());
     if (marcado) {
-      return `<div class="ci"><div class="bx"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6.5 L5 9 L10 3"/></svg></div><div class="tx">${_esc(item)}</div></div>`;
+      return `<div class="ci"><div class="bx"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6.5 L5 9 L10 3"/></svg></div><div class="tx">${_esc(item)}${prioBadge(item)}</div></div>`;
     } else {
       return `<div class="ci" style="opacity:.45"><div class="bx" style="border-style:dashed;background:transparent"></div><div class="tx" style="color:#8C8275;font-weight:400">${_esc(item)}</div></div>`;
     }
@@ -2820,7 +2897,7 @@ function gerarDossieHTML(l, mapaDataUrl) {
   // Diferenciais extras escolhidos pelo cliente que não estão na lista canônica
   const extras = diferenciais.filter(d => !DIFERENCIAIS_CANON.some(c => c.toLowerCase()===d.toLowerCase()));
   const checklistExtras = extras.length
-    ? extras.map(e => `<div class="ci"><div class="bx"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6.5 L5 9 L10 3"/></svg></div><div class="tx">${_esc(e)}</div></div>`).join('')
+    ? extras.map(e => `<div class="ci"><div class="bx"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6.5 L5 9 L10 3"/></svg></div><div class="tx">${_esc(e)}${prioBadge(e)}</div></div>`).join('')
     : '';
 
   // Mapa: usa a imagem capturada do Leaflet; se não existir, mantém o gradiente padrão
@@ -3853,7 +3930,34 @@ function exportarExcel() {
 function toggleChip(el) { el.classList.toggle('sel'); }
 function toggleOpt(el) { el.classList.toggle('sel'); checkPermuta(); }
 function selUnico(el, group) { document.querySelectorAll(`[data-group="${group}"]`).forEach(e=>e.classList.remove('sel')); el.classList.add('sel'); }
-function toggleDiff(el) { el.classList.toggle('sel'); }
+function toggleDiff(el) {
+  el.classList.toggle('sel');
+  if (el.classList.contains('sel') && !el.getAttribute('data-prio')) el.setAttribute('data-prio', 'im');
+}
+// Fase 4 · define a prioridade de um diferencial (Essencial / Importante / Desejável)
+function setDiffPrio(el, prio) {
+  const item = el.closest('.diff-item');
+  if (!item) return;
+  if (!item.classList.contains('sel')) item.classList.add('sel'); // clicar na prioridade já seleciona o item
+  item.setAttribute('data-prio', prio);
+}
+// Fase 4 · escolha do modo de preenchimento (rápido / completo)
+let modoSel = 'completo';
+function selModo(el, modo) {
+  modoSel = modo;
+  document.querySelectorAll('.modo-opt').forEach(o => o.classList.remove('sel'));
+  el.classList.add('sel');
+}
+// Fase 4 · rótulos e formatação das prioridades para dossiê e notificação
+const PRIO_LBL_DOSS = { es: 'Essencial', im: 'Importante', de: 'Desejável' };
+function fmtDifPrio(l) {
+  const p = (l && l.diferenciais_prio && typeof l.diferenciais_prio === 'object') ? l.diferenciais_prio : {};
+  const groups = { es: [], im: [], de: [] };
+  Object.keys(p).forEach(k => { if (groups[p[k]]) groups[p[k]].push(k); });
+  const parts = [];
+  ['es', 'im', 'de'].forEach(g => { if (groups[g].length) parts.push(PRIO_LBL_DOSS[g] + ': ' + groups[g].join(', ')); });
+  return parts.length ? parts.join('  ·  ') : '—';
+}
 function counter(k, d) { counters[k] = Math.max(0, counters[k]+d); document.getElementById('val-'+k).textContent = counters[k]; }
 function checkPermuta() {
   const has = Array.from(document.querySelectorAll('[data-group="pgto"].sel')).some(e=>e.querySelector('.pgto-name').textContent.includes('Permuta'));
