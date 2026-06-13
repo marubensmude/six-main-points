@@ -829,12 +829,13 @@
   .diff-item.sel .diff-label { color: var(--gold-dark); font-weight: 500; }
 
   /* ══════ FASE 4 · PRIORIDADE DOS DIFERENCIAIS ══════ */
-  .diff-prio { display: none; flex-basis: 100%; width: 100%; gap: 5px; margin-top: 3px; }
+  .diff-prio { display: none; flex-basis: 100%; width: 100%; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 5px; }
   .diff-item.sel .diff-prio { display: flex; }
   body.smp-rapido .diff-item.sel .diff-prio { display: none; }   /* Modo Rápido: sem detalhar prioridade */
   .dp {
-    font-size: 9.5px; letter-spacing: .03em; text-transform: uppercase; font-weight: 500;
-    padding: 4px 8px; border: 1px solid var(--border); background: var(--white);
+    flex: 0 1 auto; min-width: 0; text-align: center; white-space: nowrap;
+    font-size: 8px; letter-spacing: .01em; text-transform: uppercase; font-weight: 600;
+    padding: 4px 6px; border: 1px solid var(--border); background: var(--white);
     color: var(--text-dim); cursor: pointer; border-radius: 20px;
     transition: all var(--transition);
   }
@@ -2445,8 +2446,21 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
     const pd = document.getElementById('smp-ach-desc');    if (pd) pd.textContent = perfil.desc;
   } catch(e) { console.warn('perfil smp:', e); }
 
-  try { mostrarDossieNaTela(); } catch(e){ console.warn('preview dossie:', e); }
   showScreen('smp-achieve');
+
+  // Fase 6 · cópia de segurança: gera o dossiê do cliente (mesmo PDF do download)
+  // e envia como anexo para a Mude — assim, se o cliente fechar antes de baixar,
+  // o dossiê não se perde. O lead já foi salvo no Supabase acima.
+  (async () => {
+    try {
+      if (!(APPS_SCRIPT_URL && APPS_SCRIPT_URL !== '[PREENCHER]')) return;
+      const docPromise = gerarDossiePDF(false).catch(() => null);
+      const doc = await Promise.race([docPromise, new Promise(r => setTimeout(() => r(null), 12000))]);
+      if (!doc) return;
+      const b64 = doc.output('datauristring').split(',')[1];
+      if (b64) enviarDossieAnexo(lead, b64);
+    } catch (e) { console.warn('[anexo dossiê] falhou:', e); }
+  })();
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -2455,6 +2469,30 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
 //  e-mail enviado para a Mude. Usa fetch no-cors + text/plain para evitar
 //  bloqueio de CORS (fire-and-forget). Se a rede falhar, cai no EmailJS.
 // ════════════════════════════════════════════════════════════════════
+// Fase 6 · envia o dossiê do cliente (PDF base64, idêntico ao download) como
+// anexo para a Mude — cópia de segurança caso o cliente feche antes de baixar.
+function enviarDossieAnexo(lead, dossiePdfB64) {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === '[PREENCHER]' || !dossiePdfB64) return;
+  var payload = {
+    tipo:       'dossie',
+    nome:       lead.nome,
+    email:      lead.email,
+    wpp:        lead.wpp,
+    interesse:  lead.interesse,
+    perfil_smp: (lead.perfil_smp && lead.perfil_smp.name) ? lead.perfil_smp.name : '',
+    quando:     new Date().toLocaleString('pt-BR'),
+    dossie_pdf: dossiePdfB64
+  };
+  try {
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).then(() => console.info('[anexo dossiê] enviado para a Mude.'))
+      .catch(err => console.warn('[anexo dossiê] erro de rede:', err));
+  } catch (e) { console.warn('[anexo dossiê] exceção:', e); }
+}
+
 function notificarPlanoB(lead, corpo, emailHtml) {
   if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === '[PREENCHER]') {
     console.warn('[PlanoB] APPS_SCRIPT_URL não configurada — usando EmailJS.');
@@ -3289,8 +3327,10 @@ async function gerarDossiePDF(salvarArquivo = true) {
   }
   const { jsPDF } = window.jspdf;
 
-  toast('Gerando dossiê premium…');
-  await new Promise(r => setTimeout(r, 50)); // deixa o toast aparecer
+  if (salvarArquivo) {
+    toast('Gerando dossiê premium…');
+    await new Promise(r => setTimeout(r, 50)); // deixa o toast aparecer
+  }
 
   // 1) Renderiza o mapa real de Dourados
   const mapaDataUrl = await renderMapaBairros(l.loc_bairros, l.loc_cidade, l.loc_estado, l.loc_distrito, l.obs_loc);
@@ -4090,7 +4130,12 @@ function computeProfileSMP(l) {
 // Fase 5 · avança da tela de conquista para o dossiê
 function abrirDossieSMP() {
   showScreen('success');
-  setTimeout(() => { const s = document.getElementById('success'); if (s) s.scrollTop = 0; }, 50);
+  // Renderiza o preview SÓ depois que #success está visível (senão a largura é 0
+  // e a escala do preview fica zerada — dossiê não aparecia).
+  setTimeout(() => {
+    const s = document.getElementById('success'); if (s) s.scrollTop = 0;
+    try { mostrarDossieNaTela(); } catch (e) { console.warn('preview dossie:', e); }
+  }, 340);
 }
 function counter(k, d) { counters[k] = Math.max(0, counters[k]+d); document.getElementById('val-'+k).textContent = counters[k]; }
 function checkPermuta() {

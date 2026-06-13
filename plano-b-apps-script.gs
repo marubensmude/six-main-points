@@ -38,8 +38,30 @@ function doPost(e) {
       lead = JSON.parse(e.postData.contents);
     }
 
-    // Gera o Dossiê em PDF (a partir do HTML enviado pelo site, ou de um
-    // resumo do lead caso o HTML não venha) e anexa ao e-mail.
+    // ── Caso especial: cópia do DOSSIÊ DO CLIENTE ─────────────────────────────
+    // O site gera o mesmo PDF que o cliente baixa (base64) e envia aqui. Anexamos
+    // exatamente esse arquivo — assim, se o cliente fechar a tela antes de baixar,
+    // a Mude ainda recebe o dossiê completo, idêntico ao do cliente.
+    if (lead.tipo === 'dossie' && lead.dossie_pdf) {
+      var dossieBlob = Utilities.newBlob(
+        Utilities.base64Decode(lead.dossie_pdf),
+        'application/pdf',
+        'Dossie Six Main Points - ' + (lead.nome || 'Cliente') + '.pdf'
+      );
+      MailApp.sendEmail({
+        to:          DESTINO,
+        replyTo:     lead.email || DESTINO,
+        subject:     'Dossiê do cliente (cópia) — ' + (lead.nome || 'Novo Cliente'),
+        htmlBody:    montarHtmlDossie(lead),
+        body:        'Cópia do dossiê do cliente ' + (lead.nome || '') + ' em anexo (PDF).',
+        attachments: [dossieBlob]
+      });
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, tipo: 'dossie' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ── Fluxo padrão: notificação de lead (com PDF de resumo anexado) ─────────
     var pdf = gerarPdf(lead);
 
     MailApp.sendEmail({
@@ -129,6 +151,27 @@ function montarHtml(lead) {
       '</table>' +
       '<p style="color:' + cinza + ';font-size:11px;margin-top:16px;">Notificação automática (Plano B · Google Apps Script). ' +
         'Enviada de forma independente do EmailJS para garantir que nenhum lead se perca.</p>' +
+    '</div>' +
+  '</div>';
+}
+
+// ── E-mail curto que acompanha a cópia do Dossiê do cliente ────────────────
+function montarHtmlDossie(lead) {
+  var dourado = '#B8893C', preto = '#111111', cinza = '#666666';
+  return '' +
+  '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:10px;overflow:hidden;">' +
+    '<div style="background:' + preto + ';padding:18px 22px;">' +
+      '<div style="color:' + dourado + ';font-size:12px;letter-spacing:2px;text-transform:uppercase;">Mude Imóveis</div>' +
+      '<div style="color:#fff;font-size:18px;font-weight:700;margin-top:2px;">Dossiê do cliente (cópia de segurança)</div>' +
+    '</div>' +
+    '<div style="padding:18px 22px;color:' + cinza + ';font-size:14px;line-height:1.6;">' +
+      '<p style="margin:0 0 10px;">Segue em anexo o <b>dossiê completo</b> de <b style="color:' + preto + '">' + (lead.nome || '—') + '</b>, idêntico ao que o cliente vê na tela — enviado automaticamente para que nada se perca, mesmo que o cliente feche a página antes de baixar.</p>' +
+      (lead.perfil_smp ? '<p style="margin:0 0 10px;">Perfil SMP: <b style="color:' + preto + '">' + lead.perfil_smp + '</b></p>' : '') +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+        '<tr><td style="padding:6px 0;color:' + cinza + ';">WhatsApp</td><td style="padding:6px 0;color:' + preto + ';font-weight:600;">' + (lead.wpp || '—') + '</td></tr>' +
+        '<tr><td style="padding:6px 0;color:' + cinza + ';">E-mail</td><td style="padding:6px 0;color:' + preto + ';font-weight:600;">' + (lead.email || '—') + '</td></tr>' +
+        '<tr><td style="padding:6px 0;color:' + cinza + ';">Recebido em</td><td style="padding:6px 0;color:' + preto + ';font-weight:600;">' + (lead.quando || '—') + '</td></tr>' +
+      '</table>' +
     '</div>' +
   '</div>';
 }
