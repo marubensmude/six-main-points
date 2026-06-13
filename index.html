@@ -217,6 +217,9 @@
     --radius: 12px;
     --radius-sm: 8px;
     --transition: 0.22s cubic-bezier(0.4,0,0.2,1);
+    /* ── Fase 1 · camada de movimento (Jornada SMP) ── */
+    --ease: cubic-bezier(.22,.61,.36,1);
+    --t-fast: 260ms; --t-mid: 380ms; --t-slow: 440ms;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -241,6 +244,43 @@
     overflow-y: auto; overflow-x: hidden;
     background: var(--bg);
     z-index: 1;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     FASE 1 · CAMADA DE MOVIMENTO — Jornada de Descoberta SMP
+     Transição entre telas (fade + slide), entrada sequencial dos
+     elementos e resposta imediata dos cards. Tudo aditivo.
+     ══════════════════════════════════════════════════════════════════ */
+
+  /* 1) Transição entre telas: sai para a esquerda, entra pela direita */
+  .screen.smp-enter { animation: smpScreenIn var(--t-slow) var(--ease) both; }
+  .screen.smp-exit  { animation: smpScreenOut var(--t-fast) var(--ease) both; }
+  @keyframes smpScreenIn  { from { opacity: 0; transform: translateX(34px); } to { opacity: 1; transform: none; } }
+  @keyframes smpScreenOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-34px); } }
+
+  /* 2) Entrada sequencial dos elementos ao ativar um passo (missão) */
+  @keyframes smpReveal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  .step-panel.active .step-head > *,
+  .step-panel.active > * { animation: smpReveal var(--t-slow) var(--ease) both; }
+  .step-panel.active .step-head > *:nth-child(1) { animation-delay: .04s; }
+  .step-panel.active .step-head > *:nth-child(2) { animation-delay: .11s; }
+  .step-panel.active .step-head > *:nth-child(3) { animation-delay: .18s; }
+  .step-panel.active > *:nth-child(1) { animation-delay: .03s; }
+  .step-panel.active > *:nth-child(2) { animation-delay: .12s; }
+  .step-panel.active > *:nth-child(3) { animation-delay: .20s; }
+  .step-panel.active > *:nth-child(4) { animation-delay: .27s; }
+  .step-panel.active > *:nth-child(5) { animation-delay: .33s; }
+  .step-panel.active > *:nth-child(n+6) { animation-delay: .38s; }
+
+  /* 3) Resposta imediata dos cards/chips ao selecionar (microanimação "pop") */
+  @keyframes smpPop { 0% { transform: scale(1); } 40% { transform: scale(1.04); } 100% { transform: scale(1); } }
+  .smp-pop { animation: smpPop .34s var(--ease); }
+
+  /* 4) Acessibilidade — respeita quem prefere menos movimento */
+  @media (prefers-reduced-motion: reduce) {
+    .screen.smp-enter, .screen.smp-exit,
+    .step-panel.active .step-head > *, .step-panel.active > *,
+    .smp-pop, .step-panel.active { animation: none !important; }
   }
 
   /* ─── LOGO SVG ─────────────────────── */
@@ -1951,12 +1991,37 @@ function iniciarApp() {
 }
 
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const el = document.getElementById(id);
-  el.classList.add('active');
-  el.scrollTop = 0;
-  window.scrollTo(0, 0);
+  const cur = document.querySelector('.screen.active');
+  const reveal = el2 => { el2.scrollTop = 0; window.scrollTo(0, 0); };
+  // Sem tela atual (primeiro load) ou mesma tela: entra direto, com leve fade-in
+  if (!cur || cur === el) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active', 'smp-enter', 'smp-exit'));
+    el.classList.add('active', 'smp-enter');
+    reveal(el);
+    setTimeout(() => el.classList.remove('smp-enter'), 460);
+    return;
+  }
+  // Transição: a atual sai para a esquerda, a próxima entra pela direita
+  cur.classList.add('smp-exit');
+  setTimeout(() => {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active', 'smp-exit'));
+    el.classList.add('active', 'smp-enter');
+    reveal(el);
+    setTimeout(() => el.classList.remove('smp-enter'), 460);
+  }, 240);
 }
+
+// Fase 1 · resposta imediata dos cards/chips ao clicar (microanimação "pop").
+// Listener delegado em captura — convive com os onclick existentes sem alterá-los.
+document.addEventListener('click', function (e) {
+  const c = e.target.closest('.opt-card, .bairro-chip');
+  if (!c) return;
+  c.classList.remove('smp-pop');
+  void c.offsetWidth;            // reinicia a animação se clicado em sequência
+  c.classList.add('smp-pop');
+  setTimeout(() => c.classList.remove('smp-pop'), 360);
+}, true);
 
 function goToStep(n) {
   currentStep = n;
