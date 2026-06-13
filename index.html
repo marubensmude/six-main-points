@@ -855,6 +855,45 @@
   .modo-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-top: 2px; }
   @media (max-width: 460px){ .modo-group { grid-template-columns: 1fr; } }
 
+  /* ══════════════════════════════════════════════════════════════════
+     FASE 5 · TELA DE CONQUISTA (Perfil SMP construído)
+     ══════════════════════════════════════════════════════════════════ */
+  #smp-achieve.screen.active {
+    align-items: center; justify-content: center;
+    text-align: center; padding: 40px 24px;
+  }
+  .smp-ach-inner { max-width: 560px; display: flex; flex-direction: column; align-items: center; }
+  .smp-ach-seal { width: 92px; height: 92px; margin: 0 auto 26px; position: relative;
+    display: flex; align-items: center; justify-content: center; }
+  .smp-ach-seal .ring { position: absolute; inset: 0; border-radius: 50%;
+    border: 1.5px solid var(--gold); animation: smpSealSpin 18s linear infinite; }
+  .smp-ach-seal .ring::before { content: ''; position: absolute; top: -4px; left: 50%;
+    width: 6px; height: 6px; background: var(--gold); transform: translateX(-50%) rotate(45deg); }
+  @keyframes smpSealSpin { to { transform: rotate(360deg); } }
+  .smp-ach-seal .core { width: 60px; height: 60px; border-radius: 50%; background: var(--black);
+    display: flex; align-items: center; justify-content: center; }
+  .smp-ach-seal .core svg { width: 28px; height: 28px; stroke: var(--gold-light); fill: none; stroke-width: 1.7; }
+  .smp-ach-eyebrow { font-size: 10.5px; font-weight: 500; letter-spacing: .26em; text-transform: uppercase;
+    color: var(--gold-dark); margin-bottom: 14px; }
+  .smp-ach-title { font-family: var(--ff-serif); font-weight: 300; line-height: 1.12;
+    font-size: clamp(30px, 4.6vw, 50px); color: var(--ink); margin-bottom: 18px; }
+  .smp-ach-title strong { font-weight: 600; }
+  .smp-ach-profile { font-family: var(--ff-serif); font-style: italic; font-weight: 600;
+    font-size: clamp(20px, 3vw, 28px); color: var(--gold-dark); margin-bottom: 8px;
+    padding: 10px 22px; border-top: 1px solid var(--gold-border); border-bottom: 1px solid var(--gold-border); }
+  .smp-ach-desc { font-size: 13.5px; font-weight: 300; color: var(--text-muted); line-height: 1.65;
+    max-width: 48ch; margin: 14px 0 6px; }
+  .smp-ach-sub { font-size: 14.5px; font-weight: 300; color: var(--text-muted); line-height: 1.6;
+    max-width: 44ch; margin: 6px 0 34px; }
+  .smp-ach-sub em { font-style: italic; color: var(--gold-dark); }
+  .smp-ach-reveal { opacity: 0; transform: translateY(14px); animation: smpReveal var(--t-slow) var(--ease) forwards; }
+  .smp-ach-reveal.d1 { animation-delay: .15s; } .smp-ach-reveal.d2 { animation-delay: .30s; }
+  .smp-ach-reveal.d3 { animation-delay: .46s; } .smp-ach-reveal.d4 { animation-delay: .62s; }
+  @media (prefers-reduced-motion: reduce) {
+    .smp-ach-seal .ring { animation: none !important; }
+    .smp-ach-reveal { animation: none !important; opacity: 1; transform: none; }
+  }
+
   /* Pgto cards */
   .pgto-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -1460,6 +1499,22 @@
 <!-- ═══════════════════════════════════════
      TELA 3 — SUCESSO
 ════════════════════════════════════════ -->
+<!-- ════════ TELA DE CONQUISTA · Fase 5 ════════ -->
+<div id="smp-achieve" class="screen">
+  <div class="smp-ach-inner">
+    <div class="smp-ach-seal smp-ach-reveal d1">
+      <div class="ring"></div>
+      <div class="core"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></div>
+    </div>
+    <div class="smp-ach-eyebrow smp-ach-reveal d2">Diagnóstico concluído</div>
+    <h1 class="smp-ach-title smp-ach-reveal d2">Seu <strong>Perfil SMP</strong> foi construído.</h1>
+    <div class="smp-ach-profile smp-ach-reveal d3" id="smp-ach-profile">—</div>
+    <p class="smp-ach-desc smp-ach-reveal d3" id="smp-ach-desc"></p>
+    <p class="smp-ach-sub smp-ach-reveal d4">Agora a Mude Imóveis consegue buscar <em>menos imóveis</em> — e <strong>melhores imóveis</strong> para você.</p>
+    <button class="btn-primary smp-ach-reveal d4" onclick="abrirDossieSMP()">Abrir meu dossiê SMP →</button>
+  </div>
+</div>
+
 <div id="success" class="screen" style="
   background:var(--bg);
   align-items:center;
@@ -2379,13 +2434,16 @@ Mude Imóveis · CRECI-J 6052 · Dourados, MS
     }
   } catch(e) { console.warn('msg sucesso:', e); }
 
-  showScreen('success');
+  // Fase 5 · calcula o Perfil SMP e mostra a tela de conquista antes do dossiê
+  try {
+    const perfil = computeProfileSMP(lead);
+    lead.perfil_smp = perfil;
+    const pn = document.getElementById('smp-ach-profile'); if (pn) pn.textContent = perfil.name;
+    const pd = document.getElementById('smp-ach-desc');    if (pd) pd.textContent = perfil.desc;
+  } catch(e) { console.warn('perfil smp:', e); }
+
   try { mostrarDossieNaTela(); } catch(e){ console.warn('preview dossie:', e); }
-  // Garantir scroll ao topo da tela de sucesso
-  setTimeout(() => {
-    const s = document.getElementById('success');
-    if(s) s.scrollTop = 0;
-  }, 50);
+  showScreen('smp-achieve');
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -2872,6 +2930,7 @@ function gerarDossieHTML(l, mapaDataUrl) {
   const pagModalidade   = pgto[0] || 'Não definido';
   const dossNum         = dossieNum(l);
   const dataExt         = dataPorExtenso();
+  const perfilSMP       = (l.perfil_smp && l.perfil_smp.name) ? l.perfil_smp : computeProfileSMP(l);
 
   // Fase 4 · selo de prioridade por diferencial (só no Modo Completo)
   const _prioMap = (l.diferenciais_prio && typeof l.diferenciais_prio === 'object') ? l.diferenciais_prio : {};
@@ -2938,6 +2997,11 @@ function gerarDossieHTML(l, mapaDataUrl) {
       <div class="cover-eyebrow">Perfil Qualificado de Cliente · Dossiê ${new Date().getFullYear()}</div>
       <h1 class="cover-title">Seis pontos para encontrar<br/>o <em>imóvel certo.</em></h1>
       <p class="cover-sub">Um retrato preciso das preferências do cliente — para que cada visita conte e cada proposta faça sentido.</p>
+      <div style="margin:16px 0 2px;padding:13px 16px;border:.5px solid #E2D5AE;border-left:3px solid #B5856A;background:#FBF5E9;">
+        <div style="font-family:'Manrope',sans-serif;font-size:7pt;letter-spacing:.18em;text-transform:uppercase;color:#9A6A52;font-weight:600;">Perfil SMP</div>
+        <div style="font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600;font-size:18pt;color:#22201C;line-height:1.1;margin:2px 0 4px;">${_esc(perfilSMP.name)}</div>
+        <div style="font-family:'Manrope',sans-serif;font-size:8pt;line-height:1.5;color:#5A574F;">${_esc(perfilSMP.desc)}</div>
+      </div>
       <div class="cover-meta">
         <div><div class="ck">Cliente</div><div class="cv">${_esc(l.nome||'—')}</div></div>
         <div><div class="ck">Intenção</div><div class="cv">${_esc(intencaoTexto(l.interesse))}</div></div>
@@ -3957,6 +4021,34 @@ function fmtDifPrio(l) {
   const parts = [];
   ['es', 'im', 'de'].forEach(g => { if (groups[g].length) parts.push(PRIO_LBL_DOSS[g] + ': ' + groups[g].join(', ')); });
   return parts.length ? parts.join('  ·  ') : '—';
+}
+
+// Fase 5 · interpreta as respostas e nomeia o Perfil SMP do cliente
+function computeProfileSMP(l) {
+  l = l || {};
+  const padraoTxt = (Array.isArray(l.padrao) ? l.padrao.join(' ') : (l.padrao || '')).toLowerCase();
+  const precoMax  = parseInt(l.preco_max) || 0;
+  const interesse = (l.interesse || '').toLowerCase();
+  const tipoTxt   = (l.tipologia || '').toLowerCase();
+  const alto       = /alto|luxo|super/.test(padraoTxt) || precoMax >= 2000000;
+  const investir   = /investir|alugar|renda/.test(interesse) || l.familia === 'comercial';
+  const explorando = /avaliando|explor/.test(interesse);
+  const residencial = l.familia === 'residencial' || /casa|apart|cobertura|condom/.test(tipoTxt);
+  if (alto) return { name: 'Comprador Estratégico de Alto Padrão',
+    desc: 'Você busca exclusividade, localização privilegiada e uma decisão patrimonial sólida. A curadoria da Mude prioriza imóveis que unem padrão construtivo, valorização e o estilo de vida que você descreveu.' };
+  if (investir) return { name: 'Investidor Patrimonial',
+    desc: 'Seu foco é rentabilidade e segurança patrimonial. Vamos concentrar a busca em imóveis com boa liquidez, localização estratégica e real potencial de valorização.' };
+  if (explorando) return { name: 'Comprador em Fase de Descoberta',
+    desc: 'Você está construindo clareza sobre a melhor escolha — e isso é um ótimo começo. A Mude vai te acompanhar com calma, refinando as opções à medida que seu perfil amadurece.' };
+  if (residencial) return { name: 'Família em Busca de Conforto e Localização',
+    desc: 'Espaço, segurança e uma boa vizinhança guiam a sua decisão. Vamos priorizar imóveis que entreguem qualidade de vida e praticidade para o seu dia a dia.' };
+  return { name: 'Comprador Consciente',
+    desc: 'Você sabe o que valoriza e quer uma escolha equilibrada entre desejo, localização e investimento. A Mude vai selecionar imóveis alinhados a essas prioridades.' };
+}
+// Fase 5 · avança da tela de conquista para o dossiê
+function abrirDossieSMP() {
+  showScreen('success');
+  setTimeout(() => { const s = document.getElementById('success'); if (s) s.scrollTop = 0; }, 50);
 }
 function counter(k, d) { counters[k] = Math.max(0, counters[k]+d); document.getElementById('val-'+k).textContent = counters[k]; }
 function checkPermuta() {
