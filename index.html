@@ -768,6 +768,8 @@
   /* Slider */
   .slider-wrap { margin-bottom: 22px; }
   .slider-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
+  /* Fase 6 · dica de arraste nos sliders */
+  .slider-hint { font-size: 10.5px; color: var(--gold-dark); text-align: center; margin-top: 9px; letter-spacing: .02em; opacity: .85; }
   .slider-val-display {
     text-align: center; margin-bottom: 14px;
     font-family: var(--ff-serif); font-size: 30px; font-weight: 300; color: var(--gold-dark);
@@ -1147,12 +1149,12 @@
     <p class="lp-eyebrow">Experiência exclusiva de atendimento</p>
 
     <h1 class="lp-headline">
-      Descubra o seu<br>
-      imóvel <em>ideal</em>
+      Toda mudança começa<br>
+      com uma <em>decisão.</em>
     </h1>
 
     <p class="lp-sub">
-      Em menos de 5 minutos, mapeamos os seis pontos essenciais do seu perfil imobiliário e conectamos você às melhores oportunidades de Dourados e região.
+      Antes de procurar, vamos entender o seu momento. Em poucos minutos, mapeamos juntos os seis pontos que revelam o seu imóvel ideal — em Dourados, na região ou onde a sua próxima fase pedir.
     </p>
 
     <!-- Benefícios -->
@@ -1172,8 +1174,8 @@
 
     <!-- Card de captura -->
     <div class="capture-card">
-      <h2 class="capture-title">Vamos começar</h2>
-      <p class="capture-sub">Preencha seus dados para acessar o questionário personalizado</p>
+      <h2 class="capture-title">Sua jornada começa aqui</h2>
+      <p class="capture-sub">Diga quem é você para a Mude acompanhar cada passo — e, ao final, entregar o seu dossiê personalizado.</p>
 
       <div class="field">
         <label>Nome completo</label>
@@ -1228,7 +1230,7 @@
       </div>
 
       <button class="btn-primary" onclick="iniciarApp()">
-        Descobrir meu imóvel ideal →
+        Começar minha jornada →
       </button>
     </div>
   </div>
@@ -1420,6 +1422,7 @@
             <input type="range" id="preco-max" min="100000" max="10000000" step="50000" value="1500000" oninput="updateDualRange()">
           </div>
           <div class="slider-labels"><span>R$ 100k</span><span>R$ 10M+</span></div>
+          <div class="slider-hint">↔ Arraste os botões com o dedo para definir a faixa</div>
         </div>
       </div>
 
@@ -1806,7 +1809,7 @@ function renderCampos(campos) {
       counters[c.k] = c.def;
       h += '<div class="counter-row"><span class="counter-label">' + c.label + '</span><div class="counter-ctrl"><button class="counter-btn" onclick="counter(\'' + c.k + '\',-1)">−</button><span class="counter-val" id="val-' + c.k + '">' + c.def + '</span><button class="counter-btn" onclick="counter(\'' + c.k + '\',1)">+</button></div></div>';
     } else if (c.t === 'slider') {
-      h += '<span class="section-label">' + c.label + '</span><div class="slider-wrap"><div class="slider-val-display"><span id="sdisp-' + c.k + '">' + c.def + '</span><small> ' + c.unit + '</small></div><div class="slider-labels"><span>' + c.min + ' ' + c.unit + '</span><span>' + c.max + ' ' + c.unit + '</span></div><input type="range" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + c.def + '" id="sld-' + c.k + '" oninput="document.getElementById(\'sdisp-' + c.k + '\').textContent=this.value"></div>';
+      h += '<span class="section-label">' + c.label + '</span><div class="slider-wrap"><div class="slider-val-display"><span id="sdisp-' + c.k + '">' + c.def + '</span><small> ' + c.unit + '</small></div><div class="slider-labels"><span>' + c.min + ' ' + c.unit + '</span><span>' + c.max + ' ' + c.unit + '</span></div><input type="range" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + c.def + '" id="sld-' + c.k + '" oninput="document.getElementById(\'sdisp-' + c.k + '\').textContent=this.value"><div class="slider-hint">↔ Arraste o botão com o dedo para ajustar</div></div>';
     } else if (c.t === 'sel') {
       h += '<span class="section-label">' + c.label + '</span><div class="option-grid">' + c.opts.map(o => '<div class="opt-card" onclick="selUnico(this,\'campo_' + c.k + '\')" data-group="campo_' + c.k + '"><span class="opt-label">' + o + '</span></div>').join('') + '</div>';
     } else if (c.t === 'multi') {
@@ -2618,7 +2621,24 @@ async function geocodificarCidade(cidade, estado, distrito) {
   return null;
 }
 
-async function renderMapaBairros(bairros, cidade, estado, distrito) {
+// Detecta direção (leste/oeste/norte/sul e diagonais) em texto livre para posicionar o mapa
+function detectarDirecao(texto) {
+  const t = (texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  let dLat = 0, dLng = 0, parts = [];
+  if (/nordeste/.test(t)) { dLat += 0.04; dLng += 0.04; parts.push('nordeste'); }
+  else if (/noroeste/.test(t)) { dLat += 0.04; dLng -= 0.04; parts.push('noroeste'); }
+  else if (/sudeste/.test(t)) { dLat -= 0.04; dLng += 0.04; parts.push('sudeste'); }
+  else if (/sudoeste/.test(t)) { dLat -= 0.04; dLng -= 0.04; parts.push('sudoeste'); }
+  else {
+    if (/\bleste\b|oriental|nascente/.test(t)) { dLng += 0.05; parts.push('leste'); }
+    if (/\boeste\b|ocidental|poente/.test(t)) { dLng -= 0.05; parts.push('oeste'); }
+    if (/\bnorte\b/.test(t)) { dLat += 0.05; parts.push('norte'); }
+    if (/\bsul\b/.test(t)) { dLat -= 0.05; parts.push('sul'); }
+  }
+  return (dLat || dLng) ? { dLat, dLng, label: parts.join('-') } : null;
+}
+
+async function renderMapaBairros(bairros, cidade, estado, distrito, hint) {
   if (typeof L === 'undefined' || typeof leafletImage === 'undefined') {
     console.warn('[mapa] Leaflet/leaflet-image não carregados — pulando.');
     return null;
@@ -2633,11 +2653,17 @@ async function renderMapaBairros(bairros, cidade, estado, distrito) {
       ? lista.map(b => BAIRROS_COORDS[b]).filter(Boolean)
       : [BAIRROS_COORDS['Qualquer região']];
   } else {
-    // Cidade fora de Dourados → centraliza na cidade/distrito informados
+    // Cidade fora de Dourados → centraliza na cidade/distrito e ajusta pela direção citada
     const pt = await geocodificarCidade(cidade, estado, distrito);
-    alvos = pt
-      ? [{ lat: pt.lat, lng: pt.lng, r: distrito ? 2200 : 3200, label: cidade, z: distrito ? 14 : 13 }]
-      : [BAIRROS_COORDS['Qualquer região']];
+    const hintTxt = [distrito, (Array.isArray(bairros) ? bairros.join(' ') : bairros), hint].filter(Boolean).join(' ');
+    const dir = detectarDirecao(hintTxt);
+    if (pt) {
+      let lat = pt.lat, lng = pt.lng;
+      if (dir) { lat += dir.dLat; lng += dir.dLng; }
+      alvos = [{ lat, lng, r: (distrito || dir) ? 2400 : 3200, label: cidade + (dir ? (' · zona ' + dir.label) : ''), z: (distrito || dir) ? 13 : 12 }];
+    } else {
+      alvos = [BAIRROS_COORDS['Qualquer região']];
+    }
   }
   if (!alvos.length) return null;
 
@@ -2805,7 +2831,7 @@ function intencaoTexto(interesse) {
 const DOSSIE_CSS = `
 .dossie-stage *{box-sizing:border-box;margin:0;padding:0;}
 .dossie-stage{font-family:'Manrope',Helvetica,Arial,sans-serif;font-size:10pt;line-height:1.45;color:#22201C;-webkit-font-smoothing:antialiased;}
-.dossie-stage .page{width:794px;height:1123px;background:#FBF7EF;position:relative;overflow:hidden;padding:48px 56px;display:flex;flex-direction:column;}
+.dossie-stage .page{width:794px;min-height:1123px;background:#FBF7EF;position:relative;overflow:hidden;padding:40px 56px 30px;display:flex;flex-direction:column;}
 .dossie-stage .serif{font-family:'Cormorant Garamond',Georgia,serif;letter-spacing:.005em;}
 .dossie-stage .eyebrow{font-family:'Manrope',sans-serif;font-size:8.5pt;letter-spacing:.28em;text-transform:uppercase;font-weight:600;color:#9A6A52;}
 .dossie-stage .label{font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.22em;text-transform:uppercase;font-weight:600;color:#8C8275;}
@@ -2825,7 +2851,7 @@ const DOSSIE_CSS = `
 .dossie-stage .page-header .left{display:flex;align-items:center;gap:14px;}
 .dossie-stage .page-footer{margin-top:auto;padding-top:14px;border-top:.5px solid #D9CDB6;display:flex;justify-content:space-between;align-items:center;font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.2em;text-transform:uppercase;color:#8C8275;}
 .dossie-stage .page-footer .num{color:#9A6A52;font-weight:600;}
-.dossie-stage .section-head{display:grid;grid-template-columns:64px 1fr auto;gap:18px;align-items:end;padding-bottom:10px;border-bottom:.5px solid #D9CDB6;margin-bottom:16px;}
+.dossie-stage .section-head{display:grid;grid-template-columns:64px 1fr auto;gap:18px;align-items:end;padding-bottom:8px;border-bottom:.5px solid #D9CDB6;margin-bottom:12px;}
 .dossie-stage .section-num{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:52pt;line-height:.85;color:#B5856A;letter-spacing:-.04em;text-align:center;}
 .dossie-stage .section-name{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:22pt;line-height:1;color:#22201C;}
 .dossie-stage .section-name em{font-style:italic;color:#9A6A52;font-weight:300;}
@@ -2839,14 +2865,14 @@ const DOSSIE_CSS = `
 .dossie-stage .field.accent{background:linear-gradient(180deg,#F3E1CF 0%, #ECD3BD 100%);border-color:#D7B89D;}
 .dossie-stage .field.accent .k{color:#7B4F38;}
 .dossie-stage .field.accent .v{color:#3B2118;}
-.dossie-stage .field-row{display:grid;gap:12px;margin-bottom:12px;}
+.dossie-stage .field-row{display:grid;gap:12px;margin-bottom:9px;}
 .dossie-stage .f2{grid-template-columns:1fr 1fr;}
 .dossie-stage .f3{grid-template-columns:1fr 1fr 1fr;}
 .dossie-stage .f4{grid-template-columns:1fr 1fr 1fr 1fr;}
 .dossie-stage .chiplist{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
 .dossie-stage .chip{font-family:'Manrope',sans-serif;font-size:8.5pt;letter-spacing:.04em;padding:5px 11px;border:.5px solid #B5856A;color:#9A6A52;border-radius:999px;background:#FCF3E8;font-weight:500;}
 .dossie-stage .chip.solid{background:#B5856A;color:#FBF7EF;border-color:#B5856A;}
-.dossie-stage .cover-block{background:radial-gradient(800px 400px at 50% -20%, #F7ECD8 0%, transparent 60%),linear-gradient(180deg,#F2E7D2 0%, #EFE3CC 100%);margin:-48px -56px 24px;padding:44px 56px 36px;position:relative;overflow:hidden;border-bottom:.5px solid #D9CDB6;}
+.dossie-stage .cover-block{background:radial-gradient(820px 420px at 50% -12%, #F9EED7 0%, transparent 62%),linear-gradient(180deg,#EFE1C5 0%, #E6D5B4 100%);margin:-40px -56px 22px;padding:40px 56px 34px;position:relative;overflow:hidden;border-bottom:1px solid #C9A84C66;text-align:center;}
 .dossie-stage .cover-deco{position:absolute;right:-60px;top:30px;opacity:.16;pointer-events:none;}
 .dossie-stage .cover-deco svg{width:340px;height:340px;}
 .dossie-stage .cover-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;position:relative;z-index:2;}
@@ -2857,7 +2883,7 @@ const DOSSIE_CSS = `
 .dossie-stage .cover-eyebrow{font-family:'Manrope',sans-serif;font-size:8pt;letter-spacing:.4em;text-transform:uppercase;color:#9A6A52;font-weight:600;margin-bottom:14px;position:relative;z-index:2;}
 .dossie-stage .cover-title{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:54pt;line-height:.95;letter-spacing:-.02em;color:#22201C;margin-bottom:12px;position:relative;z-index:2;}
 .dossie-stage .cover-title em{font-style:italic;font-weight:400;color:#9A6A52;}
-.dossie-stage .cover-sub{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;font-size:14pt;color:#3A3530;max-width:480px;line-height:1.35;position:relative;z-index:2;}
+.dossie-stage .cover-sub{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;font-size:14pt;color:#3A3530;max-width:500px;margin-left:auto;margin-right:auto;line-height:1.35;position:relative;z-index:2;}
 .dossie-stage .cover-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:24px;padding-top:18px;border-top:.5px solid rgba(154,106,82,.3);position:relative;z-index:2;}
 .dossie-stage .cover-meta .ck{font-family:'Manrope',sans-serif;font-size:7pt;letter-spacing:.26em;text-transform:uppercase;color:#8C8275;margin-bottom:5px;font-weight:600;}
 .dossie-stage .cover-meta .cv{font-family:'Cormorant Garamond',serif;font-size:13pt;font-weight:500;color:#22201C;line-height:1.2;}
@@ -2887,13 +2913,16 @@ const DOSSIE_CSS = `
 .dossie-stage .pillbar .track::before{content:'';position:absolute;left:25%;right:0;top:0;bottom:0;background:linear-gradient(90deg,#E7CDB9,#B5856A);border-radius:999px;}
 .dossie-stage .pillbar .min,.dossie-stage .pillbar .max{font-family:'Cormorant Garamond',serif;font-size:13pt;font-weight:500;color:#22201C;}
 .dossie-stage .pillbar .min{color:#8C8275;}
-.dossie-stage .quote{margin:12px 0;padding:14px 18px 14px 22px;border-left:2px solid #B5856A;background:#F6EDDB;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:11pt;color:#3A3530;line-height:1.5;}
-.dossie-stage .sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:18px;}
+.dossie-stage .quote{margin:9px 0;padding:12px 18px 12px 22px;border-left:2px solid #B5856A;background:#F6EDDB;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:11pt;color:#3A3530;line-height:1.45;}
+.dossie-stage .sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:12px;}
+.dossie-stage .dossie-closing{margin-top:12px;padding:12px 22px;border:.5px solid #D9CDB6;border-top:2px solid #B5856A;background:#F6EDDB;text-align:center;}
+.dossie-stage .dossie-closing .dc-slogan{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14pt;color:#9A6A52;margin-bottom:3px;}
+.dossie-stage .dossie-closing .dc-text{font-family:'Manrope',sans-serif;font-size:8pt;line-height:1.45;color:#5A574F;max-width:540px;margin:0 auto;}
 .dossie-stage .sign{padding-top:10px;border-top:1px solid #22201C;}
 .dossie-stage .sign .nm{font-family:'Cormorant Garamond',serif;font-size:13pt;color:#22201C;}
 .dossie-stage .sign .ro{font-family:'Manrope',sans-serif;font-size:7.5pt;letter-spacing:.22em;text-transform:uppercase;color:#8C8275;margin-top:3px;font-weight:600;}
 .dossie-stage .two-col{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;}
-.dossie-stage .star-rule{display:flex;align-items:center;gap:12px;margin:14px 0 10px;}
+.dossie-stage .star-rule{display:flex;align-items:center;gap:12px;margin:9px 0 7px;}
 .dossie-stage .star-rule .ln{flex:1;height:1px;background:linear-gradient(90deg,transparent,#D9CDB6,transparent);}
 .dossie-stage .star-rule .st{color:#B5856A;font-size:11pt;}
 `;
@@ -2997,10 +3026,10 @@ function gerarDossieHTML(l, mapaDataUrl) {
       <div class="cover-eyebrow">Perfil Qualificado de Cliente · Dossiê ${new Date().getFullYear()}</div>
       <h1 class="cover-title">Seis pontos para encontrar<br/>o <em>imóvel certo.</em></h1>
       <p class="cover-sub">Um retrato preciso das preferências do cliente — para que cada visita conte e cada proposta faça sentido.</p>
-      <div style="margin:16px 0 2px;padding:13px 16px;border:.5px solid #E2D5AE;border-left:3px solid #B5856A;background:#FBF5E9;">
-        <div style="font-family:'Manrope',sans-serif;font-size:7pt;letter-spacing:.18em;text-transform:uppercase;color:#9A6A52;font-weight:600;">Perfil SMP</div>
+      <div style="margin:16px auto 4px;max-width:560px;padding:13px 20px;border:.5px solid #E2D5AE;border-top:2px solid #B5856A;background:#FBF5E9;text-align:center;">
+        <div style="font-family:'Manrope',sans-serif;font-size:7pt;letter-spacing:.22em;text-transform:uppercase;color:#9A6A52;font-weight:600;">Perfil SMP</div>
         <div style="font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600;font-size:18pt;color:#22201C;line-height:1.1;margin:2px 0 4px;">${_esc(perfilSMP.name)}</div>
-        <div style="font-family:'Manrope',sans-serif;font-size:8pt;line-height:1.5;color:#5A574F;">${_esc(perfilSMP.desc)}</div>
+        <div style="font-family:'Manrope',sans-serif;font-size:8pt;line-height:1.5;color:#5A574F;max-width:480px;margin:0 auto;">${_esc(perfilSMP.desc)}</div>
       </div>
       <div class="cover-meta">
         <div><div class="ck">Cliente</div><div class="cv">${_esc(l.nome||'—')}</div></div>
@@ -3063,7 +3092,7 @@ function gerarDossieHTML(l, mapaDataUrl) {
         ${l.obs_loc ? `<div class="field"><div class="k">Observações</div><div class="v" style="font-size:11pt;line-height:1.3">${_esc(l.obs_loc)}</div></div>` : ''}
       </div>
       <div class="field" style="padding:0;overflow:hidden">
-        <div class="map" style="height:200px;margin:0;border:none;border-radius:0">${mapaImg}</div>
+        <div class="map" style="height:172px;margin:0;border:none;border-radius:0">${mapaImg}</div>
         <div class="small" style="padding:6px 12px;text-align:center;border-top:.5px dotted #D9CDB6;background:#FAF5EA;font-size:7.5pt">Mapa real de ${_esc(l.loc_cidade || 'Dourados')}${l.loc_distrito ? ' · ' + _esc(l.loc_distrito) : ''} · região${bairros.length>1?'ões':''} destacada${bairros.length>1?'s':''} pelo cliente</div>
       </div>
     </div>
@@ -3173,6 +3202,11 @@ function gerarDossieHTML(l, mapaDataUrl) {
       <div class="sign"><div class="nm">${new Date().toLocaleDateString('pt-BR')}</div><div class="ro">Data de validação</div></div>
     </div>
 
+    <div class="dossie-closing">
+      <div class="dc-slogan">Mude que a Gente te Acompanha.</div>
+      <div class="dc-text">Uma leitura consultiva do seu momento. A partir dela, a curadoria da Mude seleciona menos imóveis — e melhores imóveis — para você.</div>
+    </div>
+
     <footer class="page-footer"><div>Mude Imóveis · CRECI-J 6052 · mudeimobiliaria.com.br</div><div>Pág. <span class="num">03</span> / 03</div></footer>
   </section>
 </div>`;
@@ -3202,7 +3236,7 @@ async function mostrarDossieNaTela() {
   host.innerHTML = '<div style="padding:36px 0;text-align:center;color:#9A6A52;font-family:\'Manrope\',sans-serif;font-size:13px;letter-spacing:.04em;">Montando seu dossiê personalizado…</div>';
 
   let mapaDataUrl = '';
-  try { mapaDataUrl = await renderMapaBairros(lead.loc_bairros, lead.loc_cidade, lead.loc_estado, lead.loc_distrito); }
+  try { mapaDataUrl = await renderMapaBairros(lead.loc_bairros, lead.loc_cidade, lead.loc_estado, lead.loc_distrito, lead.obs_loc); }
   catch (e) { console.warn('[preview] mapa:', e); }
 
   const outer = document.createElement('div');
@@ -3259,7 +3293,7 @@ async function gerarDossiePDF(salvarArquivo = true) {
   await new Promise(r => setTimeout(r, 50)); // deixa o toast aparecer
 
   // 1) Renderiza o mapa real de Dourados
-  const mapaDataUrl = await renderMapaBairros(l.loc_bairros, l.loc_cidade, l.loc_estado, l.loc_distrito);
+  const mapaDataUrl = await renderMapaBairros(l.loc_bairros, l.loc_cidade, l.loc_estado, l.loc_distrito, l.obs_loc);
 
   // 2) Monta o HTML do Dossiê em container oculto
   const cssStyle = document.createElement('style');
@@ -3290,13 +3324,21 @@ async function gerarDossiePDF(salvarArquivo = true) {
         backgroundColor: '#FBF7EF',
         logging: false,
         width: 794,
-        height: 1123,
         windowWidth: 794,
-        windowHeight: 1123,
       });
       const imgData = canvas.toDataURL('image/jpeg', 0.92);
       if (i > 0) doc.addPage();
-      doc.addImage(imgData, 'JPEG', 0, 0, PW, PH);
+      // Fundo da página (evita faixa branca caso a página seja menor que A4)
+      doc.setFillColor(251, 247, 239);
+      doc.rect(0, 0, PW, PH, 'F');
+      // Encaixa a página inteira: se exceder A4, reduz proporcionalmente — nunca corta
+      const imgH = canvas.height * (PW / canvas.width);
+      if (imgH <= PH) {
+        doc.addImage(imgData, 'JPEG', 0, 0, PW, imgH);
+      } else {
+        const scaledW = PH * (canvas.width / canvas.height);
+        doc.addImage(imgData, 'JPEG', (PW - scaledW) / 2, 0, scaledW, PH);
+      }
     } catch(e) {
       console.warn('[dossie] falha em capturar página', i+1, e);
     }
@@ -3681,7 +3723,7 @@ async function baixarResumo_OLD() {
   // ═══ MAPA DA REGIÃO — gerado antes da seção 1 ═══════════════
   // (toast informativo enquanto o tile do OSM carrega)
   toast('Gerando mapa…');
-  const mapaDataUrl = await renderMapaBairros(l.loc_bairros, l.loc_cidade, l.loc_estado, l.loc_distrito);
+  const mapaDataUrl = await renderMapaBairros(l.loc_bairros, l.loc_cidade, l.loc_estado, l.loc_distrito, l.obs_loc);
 
   // ═══ OS 6 PONTOS ════════════════════════════════════════════
   // Ponto 1 SEMPRE começa na página 2
