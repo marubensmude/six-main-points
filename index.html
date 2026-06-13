@@ -1177,7 +1177,7 @@
   <div class="progress-wrap">
     <div class="progress-header">
       <span class="progress-label">Six Main Points</span>
-      <span class="progress-count" id="step-counter">Ponto 1 de 6</span>
+      <span class="progress-count" id="step-counter">Missão 1 de 6</span>
     </div>
     <div class="progress-bar-bg">
       <div class="progress-bar-fill" id="progress-fill" style="width:16.67%"></div>
@@ -1200,9 +1200,9 @@
     <!-- PASSO 1: Localização -->
     <div class="step-panel active" id="panel-0">
       <div class="step-head">
-        <span class="step-eyebrow">Ponto 1 — Localização</span>
-        <h2 class="step-title">Onde você quer estar?</h2>
-        <p class="step-desc">Selecione os bairros ou regiões de Dourados que mais te interessam.</p>
+        <span class="step-eyebrow">Missão 1 de 6 · Localização</span>
+        <h2 class="step-title">Onde a sua vida acontece?</h2>
+        <p class="step-desc">Em quais regiões você se imagina vivendo ou investindo? A localização é o ponto que mais pesa numa boa escolha.</p>
       </div>
 
       <span class="section-label">Cidade onde deseja o imóvel</span>
@@ -1237,9 +1237,9 @@
     <!-- PASSO 2: Tipologia -->
     <div class="step-panel" id="panel-1">
       <div class="step-head">
-        <span class="step-eyebrow">Ponto 2 — Tipologia</span>
-        <h2 class="step-title">Qual tipo de imóvel ideal?</h2>
-        <p class="step-desc">Escolha a família e o tipo — as perguntas se ajustam ao imóvel que você procura.</p>
+        <span class="step-eyebrow">Missão 2 de 6 · Tipologia</span>
+        <h2 class="step-title">Que formato de imóvel combina com o seu próximo momento?</h2>
+        <p class="step-desc">Não pense em planta ainda. Pense em como você quer viver — as perguntas se ajustam ao imóvel que você procura.</p>
       </div>
 
       <span class="section-label">Família do imóvel</span>
@@ -1268,9 +1268,9 @@
     <!-- PASSO 3: Qualidade -->
     <div class="step-panel" id="panel-2">
       <div class="step-head">
-        <span class="step-eyebrow">Ponto 3 — Qualidade</span>
-        <h2 class="step-title">Qual padrão de entrega?</h2>
-        <p class="step-desc">Selecione o nível de acabamento e as condições que aceita.</p>
+        <span class="step-eyebrow">Missão 3 de 6 · Qualidade</span>
+        <h2 class="step-title">Qual padrão faz sentido para você?</h2>
+        <p class="step-desc">O padrão certo equilibra o que você valoriza e o investimento que faz sentido nesta decisão.</p>
       </div>
 
       <span class="section-label">Padrão de acabamento <small style="font-weight:300;letter-spacing:0;text-transform:none;color:var(--gold-dark)">— selecione quantos quiser</small></span>
@@ -1296,9 +1296,9 @@
     <!-- PASSO 4: Diferenciais -->
     <div class="step-panel" id="panel-3">
       <div class="step-head">
-        <span class="step-eyebrow">Ponto 4 — Diferenciais</span>
-        <h2 class="step-title">O que não pode faltar?</h2>
-        <p class="step-desc">Marque os itens inegociáveis para você. Selecione quantos quiser.</p>
+        <span class="step-eyebrow">Missão 4 de 6 · Diferenciais</span>
+        <h2 class="step-title">O que transforma um imóvel na escolha certa?</h2>
+        <p class="step-desc">Marque o que faz diferença para você. São esses detalhes que separam um imóvel bom do imóvel certo.</p>
       </div>
 
       <div class="diff-grid" id="diff-grid-dyn"></div>
@@ -1312,9 +1312,9 @@
     <!-- PASSO 5: Preço -->
     <div class="step-panel" id="panel-4">
       <div class="step-head">
-        <span class="step-eyebrow">Ponto 5 — Faixa de Preço</span>
-        <h2 class="step-title" id="titulo-preco">Qual o seu envelope financeiro?</h2>
-        <p class="step-desc">Defina sua faixa de investimento. Seus dados são totalmente confidenciais.</p>
+        <span class="step-eyebrow">Missão 5 de 6 · Faixa de Investimento</span>
+        <h2 class="step-title" id="titulo-preco">Qual faixa de investimento faz sentido para essa decisão?</h2>
+        <p class="step-desc">Não existe resposta certa — existe a faixa que conversa com o seu momento. Sua faixa é confidencial e serve só para selecionar bem.</p>
       </div>
 
       <span class="section-label">Ajuste a faixa</span>
@@ -1356,9 +1356,9 @@
     <!-- PASSO 6: Pagamento -->
     <div class="step-panel" id="panel-5">
       <div class="step-head">
-        <span class="step-eyebrow">Ponto 6 — Forma de Pagamento</span>
-        <h2 class="step-title">Como pretende realizar a compra?</h2>
-        <p class="step-desc">Selecione a forma preferida. Pode combinar mais de uma opção.</p>
+        <span class="step-eyebrow">Missão 6 de 6 · Forma de Pagamento</span>
+        <h2 class="step-title">Qual caminho de compra faz mais sentido?</h2>
+        <p class="step-desc">A forma de pagamento abre portas para oportunidades diferentes. Vamos entender a sua — pode combinar mais de uma opção.</p>
       </div>
 
       <div class="pgto-grid" id="pgto-grid"></div>
@@ -1408,7 +1408,7 @@
   <!-- Navegação -->
   <div class="app-nav">
     <button class="btn-back" id="btn-back" onclick="prevStep()">← Voltar</button>
-    <button class="btn-next" id="btn-next" onclick="nextStep()">Próximo →</button>
+    <button class="btn-next" id="btn-next" onclick="nextStep()">Avançar para o próximo ponto</button>
   </div>
 </div>
 
@@ -1915,7 +1915,7 @@ function selSubtipo(el, fam, sub) {
   renderPgtoCards(sub);
   // Título do Ponto 5 conforme o tipo
   const t5 = document.getElementById('titulo-preco');
-  if (t5) t5.textContent = (RURAL_PGTO_SUBS.indexOf(sub) !== -1) ? 'Qual é a sua faixa financeira?' : 'Qual o seu envelope financeiro?';
+  if (t5) t5.textContent = (RURAL_PGTO_SUBS.indexOf(sub) !== -1) ? 'Qual faixa de investimento faz sentido para esta propriedade?' : 'Qual faixa de investimento faz sentido para essa decisão?';
   const ow = document.getElementById('obs-tipologia-wrap'); if (ow) ow.style.display = '';
 }
 // ---- Mini-descoberta guiada ("Ainda não sei") ----
@@ -2063,7 +2063,7 @@ function goToStep(n) {
   document.querySelectorAll('.step-panel').forEach((p, i) => p.classList.toggle('active', i === n));
   const pct = ((n + 1) / TOTAL * 100).toFixed(1);
   document.getElementById('progress-fill').style.width = pct + '%';
-  document.getElementById('step-counter').textContent = `Ponto ${n + 1} de ${TOTAL}`;
+  document.getElementById('step-counter').textContent = `Missão ${n + 1} de ${TOTAL}`;
   // Scroll ao topo do app ao trocar de passo
   const appEl = document.getElementById('app');
   if(appEl) appEl.scrollTop = 0;
@@ -2073,7 +2073,7 @@ function goToStep(n) {
     if (i === n) d.classList.add('active');
   });
   document.getElementById('btn-back').style.visibility = n === 0 ? 'hidden' : 'visible';
-  document.getElementById('btn-next').textContent = n === TOTAL - 1 ? 'Enviar perfil ✓' : 'Próximo →';
+  document.getElementById('btn-next').textContent = SMP_BTN[n] || (n === TOTAL - 1 ? 'Gerar meu Perfil SMP' : 'Avançar →');
   const dot = document.querySelectorAll('.step-dot')[n];
   if (dot) dot.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 }
@@ -2086,6 +2086,15 @@ const SMP_FEEDBACK = [
   'Prioridades refinadas.',
   'Faixa de investimento definida.',
   'Caminho de compra compreendido.'
+];
+// Fase 3 · rótulos do botão que evoluem ao longo da jornada
+const SMP_BTN = [
+  'Avançar para o próximo ponto',
+  'Continuar meu diagnóstico',
+  'Refinar meu perfil',
+  'Definir minha faixa',
+  'Concluir esta missão',
+  'Gerar meu Perfil SMP'
 ];
 function smpCelebrate(text, done) {
   const c = document.getElementById('smp-celebrate');
@@ -2954,7 +2963,7 @@ function gerarDossieHTML(l, mapaDataUrl) {
         <div class="t${mask[3]?' on':''}">90 — 180 d</div>
         <div class="t${mask[4]?' on':''}">+ 180 d</div>
       </div>
-      ${mask.some(Boolean) ? '' : '<div class="small" style="margin-top:6px;color:#9A6A52;font-style:italic">Você ainda não definiu seu prazo de compra — escolher uma janela no Ponto 3 nos ajuda a priorizar as oportunidades certas para você.</div>'}
+      ${mask.some(Boolean) ? '' : '<div class="small" style="margin-top:6px;color:#9A6A52;font-style:italic">Você ainda não definiu seu prazo de compra — definir uma janela de decisão nos ajuda a priorizar as oportunidades certas para você.</div>'}
     </div>
 
     <footer class="page-footer"><div>Mude Imóveis · CRECI-J 6052 · Dourados, MS</div><div>Pág. <span class="num">02</span> / 03</div></footer>
