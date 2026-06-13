@@ -626,6 +626,41 @@
   .step-dot.done .num { background: var(--gold); color: var(--white); }
   .step-dot.active .num { background: var(--ink); color: var(--white); }
 
+  /* ══════════════════════════════════════════════════════════════════
+     FASE 2 · TRILHA DE PROGRESSO ANIMADA + MICROCELEBRAÇÕES
+     ══════════════════════════════════════════════════════════════════ */
+  /* Pulso dourado discreto no ponto atual da trilha */
+  .step-dot.active .num {
+    box-shadow: 0 0 0 3px var(--gold-muted);
+    animation: smpDotPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes smpDotPulse { 0%,100% { box-shadow: 0 0 0 3px #C9A84C26; } 50% { box-shadow: 0 0 0 6px #C9A84C12; } }
+  /* Brilho suave na ponta da barra de progresso */
+  .progress-bar-fill::after { animation: smpBarGlow 1.8s ease-in-out infinite; }
+  @keyframes smpBarGlow { 0%,100% { box-shadow: 0 0 0 0 #C9A84C55; } 50% { box-shadow: 0 0 7px 2px #C9A84C40; } }
+
+  /* Overlay de microcelebração ao concluir cada missão */
+  .smp-celebrate { position: fixed; inset: 0; z-index: 9000; display: none;
+    align-items: center; justify-content: center; pointer-events: none; }
+  .smp-celebrate.show { display: flex; animation: smpCelebBg .9s ease both; }
+  @keyframes smpCelebBg { 0%{background:rgba(13,13,13,0)} 22%{background:rgba(13,13,13,.5)} 76%{background:rgba(13,13,13,.5)} 100%{background:rgba(13,13,13,0)} }
+  .smp-celebrate .inner { text-align: center; transform: scale(.92); opacity: 0; animation: smpCelebIn .9s var(--ease) both; }
+  @keyframes smpCelebIn { 0%{transform:scale(.92);opacity:0} 22%{transform:scale(1);opacity:1} 78%{transform:scale(1);opacity:1} 100%{transform:scale(1.02);opacity:0} }
+  .smp-celebrate .ring { width: 62px; height: 62px; margin: 0 auto 16px; border-radius: 50%;
+    border: 1.5px solid var(--gold); display: flex; align-items: center; justify-content: center; position: relative; }
+  .smp-celebrate .ring svg { width: 26px; height: 26px; stroke: var(--gold-light); fill: none; stroke-width: 2; }
+  .smp-celebrate .ring::after { content:''; position: absolute; inset: -8px; border-radius: 50%;
+    border: 1px solid #C9A84C40; animation: smpRingPulse .9s var(--ease); }
+  @keyframes smpRingPulse { from{transform:scale(.6);opacity:1} to{transform:scale(1.45);opacity:0} }
+  .smp-celebrate .ct { font-family: var(--ff-serif); font-size: 27px; font-weight: 400; color: #fff; font-style: italic; padding: 0 24px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .step-dot.active .num, .progress-bar-fill::after { animation: none !important; }
+    .smp-celebrate.show { animation: none; background: rgba(13,13,13,.5); }
+    .smp-celebrate .inner { animation: none; opacity: 1; transform: none; }
+    .smp-celebrate .ring::after { animation: none; opacity: 0; }
+  }
+
   /* Conteúdo do passo */
   .step-content {
     flex: 1; max-width: 760px; margin: 0 auto; width: 100%;
@@ -2043,10 +2078,35 @@ function goToStep(n) {
   if (dot) dot.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 }
 
+// Fase 2 · microcelebração ao concluir cada missão
+const SMP_FEEDBACK = [
+  'Localização mapeada.',
+  'Perfil de imóvel identificado.',
+  'Padrão definido.',
+  'Prioridades refinadas.',
+  'Faixa de investimento definida.',
+  'Caminho de compra compreendido.'
+];
+function smpCelebrate(text, done) {
+  const c = document.getElementById('smp-celebrate');
+  if (!c || !text) { if (done) done(); return; }
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.getElementById('smp-celebrate-text').textContent = text;
+  c.classList.add('show');
+  setTimeout(() => { c.classList.remove('show'); if (done) done(); }, reduce ? 450 : 1000);
+}
+
+let smpBusy = false;
 function nextStep() {
+  if (smpBusy) return;               // evita duplo clique durante a celebração
+  smpBusy = true;
   coletarPasso(currentStep);
-  if (currentStep < TOTAL - 1) { goToStep(currentStep + 1); }
-  else { finalizarPerfil(); }
+  const passo = currentStep;
+  smpCelebrate(SMP_FEEDBACK[passo], () => {
+    if (passo < TOTAL - 1) { goToStep(passo + 1); }
+    else { finalizarPerfil(); }
+    smpBusy = false;
+  });
 }
 
 function prevStep() {
@@ -3817,5 +3877,13 @@ function toast(msg) {
 
 updateDualRange();
 </script>
+
+<!-- Fase 2 · overlay de microcelebração (Jornada SMP) -->
+<div class="smp-celebrate" id="smp-celebrate" aria-hidden="true">
+  <div class="inner">
+    <div class="ring"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></div>
+    <div class="ct" id="smp-celebrate-text"></div>
+  </div>
+</div>
 </body>
 </html>
