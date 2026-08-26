@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: '0 9 * * *'      # 06:00 em Dourados (UTC-3)
   workflow_dispatch:          # permite rodar na mao pelo painel do GitHub
+  push:                       # e sempre que o conversor mudar
+    paths:
+      - 'scripts/build-imoveis.mjs'
+      - '.github/workflows/atualizar-imoveis.yml'
 
 permissions:
   contents: write
