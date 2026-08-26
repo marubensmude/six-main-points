@@ -1,0 +1,37 @@
+name: Atualizar imoveis do Praedium
+
+# O feed do Praedium e regerado diariamente. Rodamos logo depois para
+# que o Six Main Points sempre confronte o perfil do cliente com o
+# estoque do dia.
+on:
+  schedule:
+    - cron: '0 9 * * *'      # 06:00 em Dourados (UTC-3)
+  workflow_dispatch:          # permite rodar na mao pelo painel do GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Gerar data/imoveis.json
+        run: node scripts/build-imoveis.mjs
+
+      - name: Commitar se houve mudanca
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/imoveis.json
+          if git diff --staged --quiet; then
+            echo "Estoque sem alteracoes hoje."
+          else
+            git commit -m "Atualiza estoque de imoveis ($(date -u +%Y-%m-%d))"
+            git push
+          fi
