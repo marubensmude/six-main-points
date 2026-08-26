@@ -3996,7 +3996,8 @@ async function baixarResumo_OLD() {
       doc.text('Cód. ' + (im.id || '—'), xt, topo + 27.5);
       sf('normal', 6.2, GOLDD);
       const link = im.url || '';
-      doc.textWithLink('Ver este imóvel no site  >', xt + 24, topo + 27.5, { url: link });
+      doc.textWithLink(im.no_site ? 'Consultar no site  >' : 'Ver este imóvel no site  >',
+                       xt + 24, topo + 27.5, { url: link });
 
       y = topo + alturaCard + 4;
     });
@@ -4681,7 +4682,11 @@ updateDualRange();
         (im._motivos && im._motivos.length
           ? '<div class="smp-imv-motivos">✓ ' + im._motivos.map(esc).join(' · ') + '</div>'
           : '') +
-        '<div class="smp-imv-cod">Cód. ' + esc(im.id) + ' <span>Ver imóvel →</span></div>' +
+        '<div class="smp-imv-cod">Cód. ' + esc(im.id) +
+          (im.no_site
+            ? ' <span>Consultar →</span>'      // sem ficha publica: leva para a listagem do tipo
+            : ' <span>Ver imóvel →</span>') +
+        '</div>' +
       '</div>' +
     '</a>';
   }

@@ -100,6 +100,51 @@ function slug(s) {
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+/* Pagina de categoria usada quando o imovel nao tem ficha publica
+   no site — o cliente continua no mudeimobiliaria.com.br, so que na
+   listagem do tipo que ele procura. */
+const URL_CATEGORIA = {
+  apartamento:    'https://mudeimobiliaria.com.br/apartamento/a-venda/dourados-ms',
+  cobertura:      'https://mudeimobiliaria.com.br/cobertura/a-venda/dourados-ms',
+  casa_cond:      'https://mudeimobiliaria.com.br/casa/a-venda/dourados-ms',
+  casa_rua:       'https://mudeimobiliaria.com.br/casa/a-venda/dourados-ms',
+  terreno:        'https://mudeimobiliaria.com.br/terreno-lote/a-venda/dourados-ms',
+  chacara:        'https://mudeimobiliaria.com.br/chacara/a-venda',
+  sitio:          'https://mudeimobiliaria.com.br/chacara/a-venda',
+  fazenda:        'https://mudeimobiliaria.com.br/chacara/a-venda',
+  sala_comercial: 'https://mudeimobiliaria.com.br/imoveis/a-venda',
+  loja:           'https://mudeimobiliaria.com.br/imoveis/a-venda',
+  galpao:         'https://mudeimobiliaria.com.br/imoveis/a-venda',
+  comercial:      'https://mudeimobiliaria.com.br/imoveis/a-venda',
+  outro:          'https://mudeimobiliaria.com.br/imoveis/a-venda'
+};
+
+/* O feed traz imoveis que nem sempre tem ficha publicada no site
+   (off-market, exclusivos, cadastros novos). Linkar para eles daria
+   404 no cliente, entao conferimos cada um antes de publicar. */
+async function validarUrls(imoveis, concorrencia = 8) {
+  let ok = 0, fora = 0, i = 0;
+
+  async function worker() {
+    while (i < imoveis.length) {
+      const im = imoveis[i++];
+      try {
+        const r = await fetch(im.url, { redirect: 'follow' });
+        const html = r.ok ? await r.text() : '';
+        const existe = r.ok && !/P[áa]gina n[ãa]o encontrada/i.test(html);
+        if (existe) { ok++; }
+        else { im.no_site = true; im.url = im.url_fallback; fora++; }
+      } catch (e) {
+        im.no_site = true; im.url = im.url_fallback; fora++;
+      }
+      delete im.url_fallback;
+    }
+  }
+
+  await Promise.all(Array.from({ length: concorrencia }, worker));
+  console.log('   fichas publicas: ' + ok + ' | sem ficha (cai na categoria): ' + fora);
+}
+
 async function main() {
   console.log('-> baixando feed...');
   const res = await fetch(FEED_URL, { headers: { 'User-Agent': 'MudeImoveis-SMP/1.0' } });
@@ -154,12 +199,19 @@ async function main() {
       cidade: tag(local, 'City'),
       uf: ufMatch ? ufMatch[1] : 'MS',
       // O site ignora o slug e resolve o imovel apenas pelo sufixo -id-N.
+      // Nem todo imovel do feed esta publicado no site, entao a URL e
+      // conferida mais abaixo (validarUrls) antes de ir para o JSON.
       url: 'https://mudeimobiliaria.com.br/imovel/' +
            slug(ROTULO_TIPO[tipo] || 'imovel') + '-' + (slug(bairro) || 'dourados') + '-id-' + id,
+      url_fallback: URL_CATEGORIA[tipo] || 'https://mudeimobiliaria.com.br/imoveis/a-venda',
+      no_site: false,
       foto: fotos[0] || '',
       fotos
     });
   }
+
+  console.log('-> conferindo quais imoveis tem ficha publica no site...');
+  await validarUrls(imoveis);
 
   imoveis.sort((a, b) => b.preco - a.preco);
 
