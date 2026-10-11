@@ -173,11 +173,20 @@
           preco_min: l.preco_min, preco_max: l.preco_max,
           pgto: l.pgto, obs_permuta: l.obs_permuta,
           prazo_negocio: l.prazo_negocio, obs_finais: l.obs_finais,
+          ...(l._semCorretor ? {} : { corretor: l.corretor || null }),
           // Atribuição de paid media (Meta/Google/TikTok/Bing) — JSONB
           attribution: l.attribution || loadAttribution()
         })
       });
-      if (!resp.ok) console.warn('Supabase save erro:', await resp.text());
+      if (!resp.ok) {
+        const txt = await resp.text();
+        // Banco ainda sem a coluna "corretor": não perde o lead, grava sem ela.
+        if (/corretor/i.test(txt) && !l._semCorretor) {
+          console.warn('Coluna corretor ausente no Supabase; gravando sem ela.');
+          return sbSaveLead(Object.assign({}, l, { corretor: undefined, _semCorretor: true }));
+        }
+        console.warn('Supabase save erro:', txt);
+      }
     } catch(e) { console.warn('Supabase save erro:', e); }
   }
 
@@ -1306,6 +1315,17 @@
         <label>E-mail</label>
         <input type="email" id="lp-email" placeholder="seu@email.com" autocomplete="email">
       </div>
+      <div class="field">
+        <label>Corretor que está te atendendo</label>
+        <select id="lp-corretor">
+          <option value="">Ainda não tenho um corretor</option>
+          <option value="Arari Leonardo">Arari Leonardo</option>
+          <option value="Camila">Camila</option>
+          <option value="Mário Rubens">Mário Rubens</option>
+          <option value="Mariucia">Mariucia</option>
+          <option value="Paulo Maioque">Paulo Maioque</option>
+        </select>
+      </div>
 
       <div class="field">
         <label>Meu interesse principal</label>
@@ -2229,6 +2249,24 @@ function selInteresse(el) {
   interesseSel = el.dataset.val;
 }
 
+// Corretor que atende o cliente. O link pode vir com ?corretor=camila
+// (primeiro nome, sem acento) para já chegar selecionado.
+(function preselecionarCorretor() {
+  try {
+    const q = new URLSearchParams(window.location.search).get('corretor');
+    if (!q) return;
+    const norm = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const alvo = norm(q).replace(/[-_]+/g, ' ');
+    const aplicar = () => {
+      const sel = document.getElementById('lp-corretor');
+      if (!sel) return;
+      const op = Array.from(sel.options).find(o => o.value && (norm(o.value) === alvo || norm(o.value).split(' ')[0] === alvo.split(' ')[0]));
+      if (op) sel.value = op.value;
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', aplicar); else aplicar();
+  } catch (e) { console.warn('corretor por link:', e); }
+})();
+
 function iniciarApp() {
   const nome = document.getElementById('lp-nome').value.trim();
   const wpp  = document.getElementById('lp-wpp').value.trim();
@@ -2239,6 +2277,7 @@ function iniciarApp() {
     id: Date.now(),
     data: new Date().toLocaleString('pt-BR'),
     nome, wpp, email: mail, interesse: interesseSel,
+    corretor: (document.getElementById('lp-corretor') || {}).value || '',
     loc_cidade: 'Dourados', loc_distrito: '', loc_estado: 'MS',
     loc_bairros: [], loc_proximidade: [], obs_loc: '',
     familia: '', subtipo: '', tipologia: '', tipologia_campos: [], obs_tipologia: '',
@@ -2488,6 +2527,7 @@ Nome:       ${fmt(lead.nome)}
 WhatsApp:   ${fmt(lead.wpp)}
 E-mail:     ${fmt(lead.email)}
 Interesse:  ${fmt(lead.interesse)}
+Corretor:   ${fmt(lead.corretor)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PONTO 1 — LOCALIZAÇÃO
@@ -2607,6 +2647,7 @@ function enviarDossieAnexo(lead, dossiePdfB64) {
     email:      lead.email,
     wpp:        lead.wpp,
     interesse:  lead.interesse,
+    corretor:   lead.corretor || '',
     perfil_smp: (lead.perfil_smp && lead.perfil_smp.name) ? lead.perfil_smp.name : '',
     quando:     new Date().toLocaleString('pt-BR'),
     dossie_pdf: dossiePdfB64
@@ -2637,6 +2678,7 @@ function notificarPlanoB(lead, corpo, emailHtml) {
     email:          lead.email,
     wpp:            lead.wpp,
     interesse:      lead.interesse,
+    corretor:       lead.corretor || '—',
     quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao',
     utm_source:     a.utm_source   || '—',
     utm_medium:     a.utm_medium   || '—',
@@ -2687,6 +2729,7 @@ function enviarEmailJS(lead, corpo, emailHtml) {
     lead_wpp:    lead.wpp,
     lead_email:  lead.email,
     lead_interesse: lead.interesse,
+    lead_corretor:  lead.corretor || '—',
     quer_consultor: lead.quer_consultor ? 'SIM' : 'Nao',
     lead_utm_source:   a.utm_source   || '—',
     lead_utm_medium:   a.utm_medium   || '—',
@@ -3199,7 +3242,7 @@ function gerarDossieHTML(l, mapaDataUrl) {
       </div>
       <div class="cover-meta">
         <div><div class="ck">Cliente</div><div class="cv">${_esc(l.nome||'—')}</div></div>
-        <div><div class="ck">Intenção</div><div class="cv">${_esc(intencaoTexto(l.interesse))}</div></div>
+        <div><div class="ck">Intenção</div><div class="cv">${_esc(intencaoTexto(l.interesse))}${l.corretor ? `<span class="ms">Corretor: ${_esc(l.corretor)}</span>` : ''}</div></div>
         <div><div class="ck">Contato</div><div class="cv">${_esc(l.wpp||'—')}<span class="ms">${_esc(l.email||'')}</span></div></div>
         <div><div class="ck">Qualificação</div><div class="cv">${dataExt}<span class="ms">Dossiê № ${dossNum}</span></div></div>
       </div>
@@ -3715,6 +3758,7 @@ async function baixarResumo_OLD() {
   doc.text('E-mail:  '+fmt(l.email), ML+6+65, y+21);
   doc.text('Interesse:  '+fmt(l.interesse), ML+6, y+28);
   doc.text('Data:  '+(l.data||new Date().toLocaleDateString('pt-BR')), ML+6, y+35);
+  if (l.corretor) doc.text('Corretor:  '+l.corretor, ML+6+65, y+28);
   const bTxt = fmt(l.interesse);
   const bW = doc.getTextWidth(bTxt)+10;
   fr(PW-MR-bW, y+6, bW, 9, GOLD);
@@ -4240,6 +4284,7 @@ function renderizarLeads() {
     <tr>
       <td style="color:var(--ink)">${l.data||'—'}</td>
       <td style="color:var(--ink);font-weight:500">${l.nome||'—'}</td>
+      <td>${l.corretor||'—'}</td>
       <td>${l.wpp||'—'}</td>
       <td>${l.email||'—'}</td>
       <td><span class="tag">${l.interesse||'—'}</span></td>
@@ -4254,7 +4299,7 @@ function renderizarLeads() {
     <div style="margin-bottom:14px;font-size:12px;color:var(--text-muted)">${leads.length} lead${leads.length!==1?'s':''} registrado${leads.length!==1?'s':''}</div>
     <table class="leads-table">
       <thead><tr>
-        <th>Data</th><th>Nome</th><th>WhatsApp</th><th>E-mail</th>
+        <th>Data</th><th>Nome</th><th>Corretor</th><th>WhatsApp</th><th>E-mail</th>
         <th>Interesse</th><th>Localização</th><th>Tipologia</th>
         <th>Padrão</th><th>Diferenciais</th><th>Faixa de Preço</th><th>Pagamento</th>
       </tr></thead>
@@ -4279,9 +4324,9 @@ function exportarJSON() {
 function exportarExcel() {
   const leads = getLeads();
   if (!leads.length) { toast('Nenhum lead para exportar.'); return; }
-  const headers = ['Data','Nome','WhatsApp','E-mail','Interesse','Bairros','Proximidade','Obs Localização','Tipologia','Quartos','Suítes','Vagas','Área m²','Padrão','Estado','Prazo Compra','Diferenciais','Obs Diferenciais','Preço Mínimo','Preço Máximo','Pagamento','Obs Permuta','Prazo Negócio','Obs Finais'];
+  const headers = ['Data','Nome','Corretor','WhatsApp','E-mail','Interesse','Bairros','Proximidade','Obs Localização','Tipologia','Quartos','Suítes','Vagas','Área m²','Padrão','Estado','Prazo Compra','Diferenciais','Obs Diferenciais','Preço Mínimo','Preço Máximo','Pagamento','Obs Permuta','Prazo Negócio','Obs Finais'];
   const arr2csv = v => Array.isArray(v) ? v.join(' | ') : (v||'');
-  const rows = leads.map(l => [l.data,l.nome,l.wpp,l.email,l.interesse,arr2csv(l.loc_bairros),arr2csv(l.loc_proximidade),l.obs_loc,l.tipologia,l.quartos,l.suites,l.vagas,l.area_m2,l.padrao,l.estado,l.prazo_compra,arr2csv(l.diferenciais),l.obs_diferenciais,l.preco_min,l.preco_max,arr2csv(l.pgto),l.obs_permuta,l.prazo_negocio,l.obs_finais]);
+  const rows = leads.map(l => [l.data,l.nome,l.corretor,l.wpp,l.email,l.interesse,arr2csv(l.loc_bairros),arr2csv(l.loc_proximidade),l.obs_loc,l.tipologia,l.quartos,l.suites,l.vagas,l.area_m2,l.padrao,l.estado,l.prazo_compra,arr2csv(l.diferenciais),l.obs_diferenciais,l.preco_min,l.preco_max,arr2csv(l.pgto),l.obs_permuta,l.prazo_negocio,l.obs_finais]);
   const csv = [headers,...rows].map(r=>r.map(c=>`"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
