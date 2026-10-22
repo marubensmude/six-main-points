@@ -55,8 +55,10 @@
   const SUPABASE_URL = 'https://pqfaowdyzgxzqmiqrnbk.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_6fFtlPfNOLWrtRd2QM439w_dooSo5uR';
   // ── ADMIN ────────────────────────────────────────────────────────────────────
-  const ADMIN_USER = 'mude';
-  const ADMIN_PASS = 'Mude@2025';
+  // Acesso único Mude Imóveis (mesmo login do Gerenciador). A senha não fica mais no código.
+  const LOGIN_URL = 'https://ghbikzuttsvqvzxsqkbu.supabase.co';
+  const LOGIN_KEY = 'sb_publishable_RcR_4O-TwJ4vVCGZiCjv_g_rsrs-En4';
+  const LOGIN_ADMINS = ['mario@mudeimobiliaria.com.br'];
   // ── EMAILJS ──────────────────────────────────────────────────────────────────
   // ⚠️  SERVICE_ID: acesse emailjs.com → Email Services → copie o ID (service_xxxxx)
   const EMAILJS_PUBLIC_KEY  = 'lERCa0snZ7xZq0E5Y';
@@ -1725,7 +1727,7 @@
         <div style="font-size:12px;color:var(--text-muted);">Painel Administrativo — Mude Imóveis</div>
       </div>
       <div style="background:var(--white);border:1px solid var(--border);border-top:2px solid var(--gold);padding:32px;">
-        <div class="field"><label>Usuário</label><input type="text" id="admin-user" placeholder="usuario" autocomplete="off"></div>
+        <div class="field"><label>E-mail</label><input type="email" id="admin-user" placeholder="nome@mudeimobiliaria.com.br" autocomplete="username"></div>
         <div class="field"><label>Senha</label><input type="password" id="admin-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')loginAdmin()"></div>
         <button class="btn-primary" style="margin-top:8px;" onclick="loginAdmin()">Entrar →</button>
       </div>
@@ -4099,9 +4101,16 @@ function mostrarAdmin() {
 }
 
 async function loginAdmin() {
-  const u = document.getElementById('admin-user').value.trim();
+  const u = document.getElementById('admin-user').value.trim().toLowerCase();
   const p = document.getElementById('admin-pass').value;
-  if (u === ADMIN_USER && p === ADMIN_PASS) {
+  let ok = false;
+  try {
+    const r = await fetch(LOGIN_URL + '/auth/v1/token?grant_type=password', { method:'POST', headers:{ 'Content-Type':'application/json', 'apikey':LOGIN_KEY }, body: JSON.stringify({ email:u, password:p }) });
+    const j = await r.json().catch(() => ({}));
+    ok = r.ok && j && j.user && LOGIN_ADMINS.indexOf(String(j.user.email||'').toLowerCase()) >= 0;
+  } catch(e) { toast('Sem conexão com o serviço de login.'); return; }
+  document.getElementById('admin-pass').value = '';
+  if (ok) {
     // injeta logo
     const logoSrc = document.querySelector('img[alt="Mude Imóveis"]')?.src || '';
     ['admin-logo'].forEach(id => {
@@ -4119,7 +4128,7 @@ async function loginAdmin() {
     renderizarLeads();
     popularSelectBusca();
   } else {
-    toast('Usuário ou senha incorretos.');
+    toast('E-mail ou senha incorretos (use o acesso único Mude).');
   }
 }
 
